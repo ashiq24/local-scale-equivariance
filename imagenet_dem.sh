@@ -13,8 +13,8 @@ debug_mode=false  # Set to true to enable sample limits
 train_dataset='scale_imagenet' # 'original_imagenet' or 'scale_imagenet'
 
 # Common configurations
-dataset_path="/depot/rayyeh/data/CAYang/datasets/imagenet"   # this is original imagenet
-multi_scale_datapath="../../image_datasets/scale_imagenet_2/"  # this is multi-scale imagenet (prepared by us)
+dataset_path="../datasets/imagenet"   # this is original imagenet
+multi_scale_datapath="../scale_imagenet_2/"  # this is multi-scale imagenet (prepared by us)
 
 batch_size=100
 wandb_project="imagenet"
@@ -32,7 +32,7 @@ PORT=$((RANDOM % 10000 + 10000))
 echo "**************Port********: $PORT"
 # Base command components
 
-output_dir="/scratch/gautschi/rahman79/output/"
+output_dir="../output/" # this is the output directory
 run_command=(
     torchrun --nproc_per_node=1 --nnodes=1 --master_port="$PORT"
 )
