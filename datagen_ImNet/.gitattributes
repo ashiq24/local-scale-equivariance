@@ -1,0 +1,2 @@
+*.pth filter=lfs diff=lfs merge=lfs -text
+dino_sam_weights/*.pth filter=lfs diff=lfs merge=lfs -text

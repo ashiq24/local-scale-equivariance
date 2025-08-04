@@ -1,0 +1,342 @@
+base: &BASE
+    do_data_augmentation: !!bool False
+    equivariance_loss: !!bool False
+    unique_optima_loss: !!bool False
+    do_adaptation: !!bool False
+    do_cannonicalization: !!bool False
+    wandb_project: 'imagenet'
+
+    # backbone training
+    freeze_backbone_epochs: -1
+    task: 'classification'
+
+    # cannonicalization hyperparameters
+
+    unique_params_limit: 5
+    canon_num_layers: 2
+    canon_num_channels: [3,8,1]
+    canon_kernel_sizes: [3,3]
+    can_discrete_vals: [0.8,1]
+
+    # local scaling ata augmentation
+    local_aug_prob: 0.5
+    warping_resolution: 8
+    warping_strength: 0.2
+
+    # default model for adaptation
+    deep_equlibrium_mode: !!bool True
+
+    # hyperparameters for local scaling adaptation
+    num_phi_layers: 2
+    adapter_coarse_resolution: [4, 4]
+    deform_resolution: None
+
+    # augment layer ids
+    augment_layer_id: [0,1,2,3,4]
+    unaugment_layer_id: [0,1,2,3,4]
+
+
+    # hyperparameters for DEM
+    adapter_num_layers: 3
+    adapter_channels: [3,16,32,64]
+    adapter_filter_size: [3,3,3]
+    adapter_pool_rate: [2,2,2]
+    inner_epochs: 5
+    dem_image_scale: !!bool True # if true, the pixel values will be sceled and mean centered in DEM. Depends on image processing pipeline.
+
+
+    # different training and loss hyperparameters
+    equivariance_loss_weight: 0.01
+    surrogate_equivariance_loss_weight: 1.0
+
+    phi_diff_loss_weight: 0.0001
+    phi_prior_loss_weight: 0.0
+    phi_diff_increment_per_epoch: 0.0
+    phi_diff_loss_weight_max: 0.0001
+    surrogate_task_loss_weight: 0.1
+
+    dem_lr: 0.0001 # this will be overwritten if --dem_lr is passed
+    dem_weight_decay: 0.0000001
+    outer_lr:  0.0000025
+    interpolation_mode: 'bilinear'
+
+    eqloss_type: "MSE" # "KL" or "JD" or "MSE"
+    
+    finetune_mode: 'complete' # 'complete' or 'partial' or 'semi-partial' or "head"
+
+    # architecture
+    
+#######
+# swin
+#######
+base_swin: &BASE_SWIN
+    <<: *BASE
+    model_name: 'swin'
+    outer_lr: 0.0000001
+
+cannon_swin: &CANNON 
+    <<: *BASE_SWIN
+    # this is traditional cannonicalization basline which augments the input data
+    model_name: 'swin'
+    outer_lr: 0.000002
+    do_cannonicalization: !!bool True
+    do_data_augmentation: !!bool True
+
+equiv_swin: &EQUIV
+    <<: *BASE_SWIN
+    # this imposes equivariance loss on the model to attain local scaling consistency
+    model_name: 'swin'
+    do_data_augmentation: !!bool True
+    equivariance_loss: !!bool True
+
+aug_swin: &AUG
+    <<: *BASE_SWIN
+    # this is the baseline model with data augmentation
+    model_name: 'swin'
+    do_data_augmentation: !!bool True     
+
+dem_swin: &DEM_SWIN
+    <<: *BASE_SWIN
+    model_name: 'swin'
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    dem_weight_decay: 0.0001
+    freeze_backbone_epochs: -1
+    dem_lr: 0.01
+
+    # diff weights
+    unique_optima_loss: !!bool False
+    phi_diff_loss_weight: 0.01
+    phi_prior_loss_weight: 0.0
+    phi_diff_increment_per_epoch: 0.0
+    phi_diff_loss_weight_max: 0.01
+
+    # equivar weight
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.01
+    eqloss_type: "MSE"
+
+    #arcitecture
+    num_phi_layers: 2
+    adapter_coarse_resolution: [6, 4]
+    adapter_num_layers: 2
+    adapter_channels: [3, 64, 128]
+    adapter_filter_size: [5,3]
+    adapter_pool_rate: [4,2]
+
+    augment_layer_id: [-1,0,1]
+    unaugment_layer_id: [-100]
+
+    finetune_mode: 'complete'
+
+
+
+#######
+# vit
+#######
+
+base_vit: &BASE_VIT
+    <<: *BASE
+    model_name: 'vit'
+    outer_lr: 0.0000001
+
+cannon_vit: &CANNON_VIT
+    <<: *BASE_VIT
+    model_name: 'vit'
+    do_cannonicalization: !!bool True
+    do_data_augmentation: !!bool True
+    unique_params_limit: 5
+    outer_lr: 0.000002
+    canon_num_layers: 2
+    canon_num_channels: [3,8,1]
+    canon_kernel_sizes: [3,3]
+
+equiv_vit: &EQUIV_VIT
+    <<: *BASE_VIT
+    model_name: 'vit'
+    do_data_augmentation: !!bool True
+    equivariance_loss: !!bool True
+
+aug_vit: &AUG_VIT
+    <<: *BASE_VIT
+    model_name: 'vit'
+    do_data_augmentation: !!bool True
+
+dem_vit: &DEM_VIT
+    <<: *BASE_VIT
+    model_name: 'vit'
+
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    outer_lr: 0.0000001
+    dem_weight_decay: 0.0001
+    freeze_backbone_epochs: -1
+    dem_lr: 0.01
+    
+    # equivar weight
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.01
+    eqloss_type: "MSE"
+
+    # diff weights
+    unique_optima_loss: !!bool False
+    phi_diff_loss_weight: 0.1
+    phi_prior_loss_weight: 0.0
+    phi_diff_increment_per_epoch: 0.1
+    phi_diff_loss_weight_max: 1.0
+
+    #arcitecture
+    num_phi_layers: 2
+    adapter_coarse_resolution: [4, 4]
+    adapter_num_layers: 2
+    adapter_channels: [3, 64, 128]
+    adapter_filter_size: [5,3]
+    adapter_pool_rate: [4,2]
+
+    augment_layer_id: [-1, 0, 1]
+    unaugment_layer_id: [-100]
+
+    finetune_mode: 'complete'
+
+
+
+
+
+########
+# DEIT
+########
+base_deit: &BASE_DEIT
+    <<: *BASE
+    model_name: 'deit'
+    outer_lr:  0.0000001
+
+cannon_deit: &CANNON_DEIT
+    <<: *BASE_DEIT
+    model_name: 'deit'
+    outer_lr: 0.000002
+    do_cannonicalization: !!bool True
+    do_data_augmentation: !!bool True
+    unique_params_limit: 5
+
+    canon_num_layers: 2
+    canon_num_channels: [3,8,1]
+    canon_kernel_sizes: [3,3]
+
+equiv_deit: &EQUIV_DEIT
+    <<: *BASE_DEIT
+    model_name: 'deit'
+    do_data_augmentation: !!bool True
+    equivariance_loss: !!bool True
+
+aug_deit: &AUG_DEIT
+    <<: *BASE_DEIT
+    model_name: 'deit'
+    do_data_augmentation: !!bool True
+
+
+dem_deit: &DEM_DEIT
+    <<: *BASE_DEIT
+    model_name: 'deit'
+    
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    outer_lr: 0.0000001
+    dem_weight_decay: 0.0001
+    freeze_backbone_epochs: -1
+    dem_lr: 0.01
+    
+    # equivar weight
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.01
+    eqloss_type: "MSE"
+
+    # diff weights
+    unique_optima_loss: !!bool False
+    phi_diff_loss_weight: 0.1
+    phi_prior_loss_weight: 0.0
+    phi_diff_increment_per_epoch: 0.1
+    phi_diff_loss_weight_max: 1.0
+
+    #arcitecture
+    num_phi_layers: 2
+    adapter_coarse_resolution: [10, 4]
+    adapter_num_layers: 2
+    adapter_channels: [3, 64, 128]
+    adapter_filter_size: [5,3]
+    adapter_pool_rate: [4,2]
+
+    augment_layer_id: [-1, 0, 1]
+    unaugment_layer_id: [-100]
+
+    finetune_mode: 'complete'
+
+
+#########
+# BEIT
+#########
+base_beit: &BASE_BEIT
+    <<: *BASE
+    model_name: 'beit'
+    outer_lr:  0.0000001
+
+cannon_beit: &CANNON_BEIT
+    <<: *BASE_BEIT
+    model_name: 'beit'
+    outer_lr: 0.000002
+    do_cannonicalization: !!bool True
+    do_data_augmentation: !!bool True
+
+equiv_beit: &EQUIV_BEIT
+    <<: *BASE_BEIT
+    model_name: 'beit'
+    do_data_augmentation: !!bool True
+    equivariance_loss: !!bool True
+
+aug_beit: &AUG_BEIT
+    <<: *BASE_BEIT
+    model_name: 'beit'
+    do_data_augmentation: !!bool True
+
+dem_beit: &DEM_BEIT
+    <<: *BASE_BEIT
+    model_name: 'beit'
+
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    outer_lr: 0.0000001
+    dem_weight_decay: 0.0001
+    freeze_backbone_epochs: -1
+    dem_lr: 0.01
+    
+    # equivar weight
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.01
+    eqloss_type: "MSE"
+
+    # diff weights
+    unique_optima_loss: !!bool False
+    phi_diff_loss_weight: 0.1
+    phi_prior_loss_weight: 0.0
+    phi_diff_increment_per_epoch: 0.1
+    phi_diff_loss_weight_max: 1.0
+
+    #arcitecture
+    num_phi_layers: 2
+    adapter_coarse_resolution: [10, 4]
+    adapter_num_layers: 2
+    adapter_channels: [3, 64, 128]
+    adapter_filter_size: [5,3]
+    adapter_pool_rate: [4,2]
+
+    augment_layer_id: [-1, 0, 1]
+    unaugment_layer_id: [-100]
+
+    finetune_mode: 'complete'
+
+dem1_beit: &DEM1_BEIT
+    <<: *DEM_BEIT
+    adapter_coarse_resolution: [4, 4]

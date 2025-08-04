@@ -1,0 +1,914 @@
+# This file contains configurations for training various models
+# on MNIST-scale classification tasks. Configurations are organized by model type and training approach.
+
+# change the wandb_project and wandb_entity to your own wandb project and entity
+# change the data_dir to your own data directory
+# change the model_weights_path to your own model weights path
+
+
+base_config: &BASE_CONFIG
+    ## SSL parameters
+    random_seed: 72
+    config: " "
+    model: 'cnn'
+    wandb_log: !!bool False
+    wandb_name: ''
+    wandb_group: ''
+    wandb_project: 'scale_mnist'
+    wandb_entity: 'wandb_project_name'
+    wandb_log_interval: 1
+    device: 'cuda:0'
+    image_format: "TENSOR"
+    trouble_shoot: !!bool False
+    warping_strength: 0.25
+
+    # data set and Task
+    data_set: 'mnist'
+    task: "classification"
+    batch_size: 64
+    num_workers: 2
+    data_dir: './data'
+    val_ratio: 0.90
+    image_size: 70
+    num_classes: 1000
+    n_digits: 3
+    s: [[0.4, 2], [0.4, 2], [0.4, 2]]
+    test_s: [[0.4, 2], [0.4, 2], [0.4, 2]]
+    test_scale_count: 8
+    concat_type: "all"
+    image_channels: 3
+
+    # architecture config
+    optimizer: 'adam'
+    outer_optimizer_kwargs: {}
+    outer_lr: 0.001
+    weight_decay: 0.00000
+    epochs: 60
+    scheduler: 'step'
+    scheduler_kwargs: {'step_size': 2, 'gamma': 0.7}
+    clip_gradient: !!bool True
+    gradient_clip_value: 5.0
+    criterion: 'cross_entropy'
+    adaptation_pause: -1
+
+    # miscellanous parameters
+    save_model: !!bool True
+    save_model_path: './weights'
+    weight_saving_interval: 20
+
+    do_adaptation: !!bool False
+    skip_input_augmentation: !!bool True
+    random_logit_mode: !!bool False
+    calculate_warping_equiv: !!bool True
+
+    # equivariance test condition
+    test_samples: 64
+    inner_random_noise: !!bool False
+    unique_params_limit: 8
+    warping_resolution: 8
+
+    surrogate_model: !!bool False
+
+    unique_optima_loss: !!bool False
+    unique_optima_loss_weight: 0.1
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool False
+    alternate_interval: 2
+    surrogate_lr: 0.001
+    surrogate_optim: 'adam'
+    surrogate_optimizer_kwargs: {}
+    deep_equlibrium_mode: !!bool False
+
+    do_pre_training_eval: !!bool False
+    fine_tune: !!bool False
+    fine_tune_model_path: ''
+    use_pretrained: !!bool True
+
+    do_cannonicalization: !!bool False
+
+    # inner optim parameters
+    inner_loss: 'shannon'
+    test_inner_epochs: 5
+
+    do_data_augmentation: !!bool False
+    adam_betas: [0.2, 0.6]
+    deform_resolution: NULL
+
+########################################################
+# Swin transformer
+########################################################
+swin_transformer: &SWIN_TRANSFORMER
+    <<: *BASE_CONFIG
+    model: 'swin_transformer'
+
+    # data config
+    image_format: "PIL"
+    batch_size: 64
+    outer_lr: 0.00001
+    epochs: 20
+    scheduler: 'rdp' # reduce on plateau
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+    image_channels: 3
+    do_adaptation: !!bool False
+    # load pretrained
+    model_weights_path: './weights/29 swin_transformer.pth'
+    phi_x_list_path: './weights/29 swin_transformer_phi_x.pth'
+    phi_y_list_path: './weights/29 swin_transformer_phi_y.pth'
+
+swin_data_augmentation: &SWIN_DATA_AUGMENTATION
+    <<: *SWIN_TRANSFORMER
+    outer_lr: 0.00008
+    weight_saving_interval: 20
+    epochs: 50
+    do_data_augmentation: !!bool True
+    model_weights_path: './weights/29 swin_data_augmentation.pth'
+    phi_x_list_path: './weights/29 swin_data_augmentation_phi_x.pth'
+    phi_y_list_path: './weights/29 swin_data_augmentation_phi_y.pth'
+
+swin_equiv:
+    <<: *SWIN_TRANSFORMER
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.001
+    do_data_augmentation: !!bool True
+
+    outer_lr: 0.00001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 swin_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/39 swin_equiv_classification.pth'
+    phi_x_list_path: './weights/39 swin_equiv_classification_phi_x.pth'
+    phi_y_list_path: './weights/39 swin_equiv_classification_phi_y.pth'
+swin_cannonicalizion: &ADA_SWIN_CANNONICALIZATION
+    <<: *SWIN_TRANSFORMER
+    do_cannonicalization: !!bool True
+    do_data_augmentation: !!bool True
+
+    cannon_num_layers: 2
+    cannon_num_channels: [3, 4, 1]
+    kernel_sizes: [3, 3, 3]
+
+    surrogate_lr: 0.001
+    outer_lr: 0.00001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    # localtion of the pretrained model
+    fine_tune_model_path: './weights/49 swin_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/39 swin_cannonicalizion_classification.pth'
+    phi_x_list_path: './weights/39 swin_cannonicalizion_classification_phi_x.pth'
+    phi_y_list_path: './weights/39 swin_cannonicalizion_classification_phi_y.pth'
+
+ada_swin_scratch: &ADA_SWIN_SCRATCH
+    <<: *SWIN_TRANSFORMER
+    use_pretrained: !!bool False
+
+    # load pretrained
+    load_pretrained: !!bool False
+    model_weights_path: './weights/19 ada_swin_scratch.pth'
+    phi_x_list_path: './weights/19 ada_swin_scratch_phi_x.pth'
+    phi_y_list_path: './weights/19 ada_swin_scratch_phi_y.pth'
+
+ada_swin_dem: &ADA_SWIN_DEM
+    <<: *SWIN_TRANSFORMER
+    evaluate_trained_model: !!bool True
+    epochs: 40
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    surrogate_model: !!bool True
+    deep_equlibrium_mode: !!bool True
+
+    weight_saving_interval: 20
+    outer_lr: 0.00002
+    surrogate_lr: 0.01
+    equivariance_loss_weight: 0
+    surrogate_equivariance_loss_weight: 0
+    phi_prior_loss_weight: 0
+    phi_diff_loss_weight: 0
+    phi_diff_increment_per_epoch: 0
+    phi_diff_loss_weight_max: 3.0
+    surrogate_task_loss_weight: 1.0
+
+    equivariance_loss: !!bool True
+
+    unique_optima_loss: !!bool True
+
+    clip_gradient: !!bool True
+    gradient_clip_value: 1.0
+    surrogate_gradient_clip_value: 0.5
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 10
+
+    num_phi_layers: 2
+    inner_lr: [0.05, 0.05]
+    adapter_coarse_resolution: [4, 4]
+
+    skip_input_augmentation: !!bool True
+
+    adapter_num_layers: 2
+    adapter_channels: [3, 32, 64, 64]
+    adapter_filter_size: [3, 3, 3]
+    adapter_pool_rate: [2, 2, 1]
+    inner_epochs: 5
+    test_inner_epochs: 5
+
+    fine_tune: !!bool False
+    do_pre_training_eval: !!bool False
+    load_pretrained: !!bool True
+    fine_tune_model_path: './weights/49 swin_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/39 ada_swin_dem_classification.pth'
+    surrogate_weights_path: './weights/39 ada_swin_dem_classification_surrogate.pth'
+    phi_x_list_path: './weights/39 ada_swin_dem_classification_phi_x.pth'
+    phi_y_list_path: './weights/39 ada_swin_dem_classification_phi_y.pth'
+
+######
+# ResNet50 configuration
+####
+
+res_net: &RES_NET
+    <<: *BASE_CONFIG
+    model: 'resnet'
+
+    image_format: "PIL"
+    batch_size: 64
+    outer_lr: 0.0001
+    epochs: 20
+    scheduler: 'rdp' # reduce on plateau
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+    image_channels: 3
+
+    model_weights_path: './weights/19 res_net_classification.pth'
+    phi_x_list_path: './weights/19 res_net_classification_phi_x.pth'
+    phi_y_list_path: './weights/19 res_net_classification_phi_y.pth'
+
+res_net_data_augmentation: &RES_NET_DATA_AUGMENTATION
+    <<: *RES_NET
+    do_data_augmentation: !!bool True
+    outer_lr: 0.0001
+    epochs: 50
+    weight_saving_interval: 20
+
+    model_weights_path: './weights/29 res_net_data_augmentation_classification.pth'
+    phi_x_list_path: './weights/29 res_net_data_augmentation_phi_x.pth'
+    phi_y_list_path: './weights/29 res_net_data_augmentation_phi_y.pth'
+
+res_net_cannonicalization: &RES_NET_CANNONICALIZATION
+    <<: *RES_NET
+    do_cannonicalization: !!bool True
+    cannon_num_layers: 2
+    cannon_num_channels: [3, 4, 1]
+    kernel_sizes: [3, 3, 3]
+    outer_lr: 0.00001
+    surrogate_lr: 0.001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 res_net_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 res_net_cannonicalization.pth'
+    phi_x_list_path: './weights/29 res_net_cannonicalization_phi_x.pth'
+    phi_y_list_path: './weights/29 res_net_cannonicalization_phi_y.pth'
+
+res_net_equiv:
+    <<: *RES_NET
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.001
+    do_data_augmentation: !!bool True
+
+    outer_lr: 0.00001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 res_net_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 res_net_equiv_classification.pth'
+    phi_x_list_path: './weights/29 res_net_equiv_classification_phi_x.pth'
+    phi_y_list_path: './weights/29 res_net_equiv_classification_phi_y.pth'
+
+ada_res_net_dem: &ADA_RES_NET_DEM
+    <<: *RES_NET
+    epochs: 40
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    surrogate_model: !!bool True
+    deep_equlibrium_mode: !!bool True
+
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.1
+
+    unique_optima_loss: !!bool True
+    phi_diff_loss_weight: 0.1
+    phi_prior_loss_weight: 0.1
+    phi_diff_increment_per_epoch: 0.0
+    phi_diff_loss_weight_max: 0.2
+
+    surrogate_task_loss_weight: 0.1
+    surrogate_equivariance_loss_weight: 1.0
+
+    clip_gradient: !!bool True
+    gradient_clip_value: 1.0
+    surrogate_gradient_clip_value: 0.5
+    surrogate_lr: 0.001
+    outer_lr: 0.000002
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 3
+
+    num_phi_layers: 2
+    inner_lr: [0.05, 0.05]
+    adapter_coarse_resolution: [4, 4]
+
+    skip_input_augmentation: !!bool True
+
+    adapter_num_layers: 2
+    adapter_channels: [3, 32, 64, 64]
+    adapter_filter_size: [3, 3, 3]
+    adapter_pool_rate: [2, 2, 1]
+    inner_epochs: 5
+    fine_tune_model_path: './weights/49 res_net_data_augmentation_classification.pth'
+    do_pre_training_eval: !!bool True
+    fine_tune: !!bool True
+
+    model_weights_path: './weights/29 ada_res_net_dem_classification.pth'
+    phi_x_list_path: './weights/29 ada_res_net_dem_classification_phi_x.pth'
+    phi_y_list_path: './weights/29 ada_res_net_dem_classification_phi_y.pth'
+
+ada_res_net_dem_1: &ADA_RES_NET_DEM_1
+    <<: *ADA_RES_NET_DEM
+    do_pre_training_eval: !!bool True
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 3
+    skip_input_augmentation: !!bool True
+
+    weight_saving_interval: 20
+    outer_lr: 0.00002
+    surrogate_lr: 0.001
+
+    equivariance_loss_weight: 0
+    surrogate_equivariance_loss_weight: 0
+    phi_prior_loss_weight: 0
+    phi_diff_loss_weight: 0
+    phi_diff_increment_per_epoch: 0
+    phi_diff_loss_weight_max: 3.0
+    surrogate_task_loss_weight: 1.0
+
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+
+    num_phi_layers: 2
+    adapter_coarse_resolution: [4, 4]
+    unique_optima_loss: !!bool True
+    equivariance_loss: !!bool True
+########################################################
+# Vit configuration
+########################################################
+
+vit: &VIT
+    <<: *BASE_CONFIG
+    model: 'vit'
+
+    image_format: "PIL"
+    batch_size: 64
+    outer_lr: 0.0001
+    epochs: 20
+    scheduler: 'rdp' # reduce on plateau
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+    image_channels: 3
+
+vit_data_augmentation: &VIT_DATA_AUGMENTATION
+    <<: *VIT
+    do_data_augmentation: !!bool True
+    weight_saving_interval: 20
+    outer_lr: 0.0001
+    epochs: 50
+
+    model_weights_path: './weights/29 vit_data_augmentation_classification.pth'
+    phi_x_list_path: './weights/29 vit_data_augmentation_phi_x.pth'
+    phi_y_list_path: './weights/29 vit_data_augmentation_phi_y.pth'
+
+vit_cannonicalization: &VIT_CANNONICALIZATION
+    <<: *VIT
+    do_cannonicalization: !!bool True
+    cannon_num_layers: 2
+    cannon_num_channels: [3, 4, 1]
+    kernel_sizes: [3, 3, 3]
+
+    outer_lr: 0.00001
+
+    surrogate_lr: 0.001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 vit_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 vit_cannonicalization.pth'
+    phi_x_list_path: './weights/29 vit_cannonicalization_phi_x.pth'
+    phi_y_list_path: './weights/29 vit_cannonicalization_phi_y.pth'
+
+vit_equiv:
+    <<: *VIT
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.001
+
+    outer_lr: 0.00001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 vit_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 vit_equiv_classification.pth'
+    phi_x_list_path: './weights/29 vit_equiv_classification_phi_x.pth'
+    phi_y_list_path: './weights/29 vit_equiv_classification_phi_y.pth'
+
+ada_vit_dem: &ADA_VIT_DEM
+    <<: *VIT
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    surrogate_model: !!bool True
+    deep_equlibrium_mode: !!bool True
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.1
+
+    unique_optima_loss: !!bool True
+    phi_diff_loss_weight: 0.1
+    phi_prior_loss_weight: 0.1
+    phi_diff_increment_per_epoch: 0.0
+    phi_diff_loss_weight_max: 0.2
+    surrogate_task_loss_weight: 0.1
+    surrogate_equivariance_loss_weight: 1.0
+
+    clip_gradient: !!bool True
+    gradient_clip_value: 1.0
+    surrogate_gradient_clip_value: 0.5
+    surrogate_lr: 0.001
+    outer_lr: 0.000002
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 3
+
+    num_phi_layers: 2
+    inner_lr: [0.05, 0.05]
+    adapter_coarse_resolution: [4, 4]
+
+    skip_input_augmentation: !!bool True
+
+    adapter_num_layers: 2
+    adapter_channels: [3, 32, 64, 64]
+    adapter_filter_size: [3, 3, 3]
+    adapter_pool_rate: [2, 2, 1]
+    inner_epochs: 5
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 vit_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/39 ada_vit_dem_1_classification.pth'
+    phi_x_list_path: './weights/39 ada_vit_dem_1_classification_phi_x.pth'
+    phi_y_list_path: './weights/39 ada_vit_dem_1_classification_phi_y.pth'
+
+ada_vit_dem_1: &ADA_VIT_DEM_1
+    <<: *ADA_VIT_DEM
+    epochs: 40
+    outer_lr: 0.00003
+    surrogate_lr: 0.003
+
+    weight_saving_interval: 20
+    equivariance_loss_weight: 0
+    surrogate_equivariance_loss_weight: 0
+    phi_prior_loss_weight: 0
+    phi_diff_loss_weight: 0
+    phi_diff_increment_per_epoch: 0
+    phi_diff_loss_weight_max: 3.0
+    surrogate_task_loss_weight: 1.0
+
+    do_pre_training_eval: !!bool True
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 0
+    skip_input_augmentation: !!bool True
+
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+
+    num_phi_layers: 3
+    adapter_coarse_resolution: [4, 4, 4]
+
+    # all surrogate loss
+    unique_optima_loss: !!bool True
+    equivariance_loss: !!bool True
+
+########################################################
+# beit configuration
+########################################################
+
+beit: &BEIT
+    <<: *BASE_CONFIG
+    model: 'beit'
+
+    image_format: "PIL"
+    batch_size: 64
+    outer_lr: 0.0001
+    epochs: 20
+    scheduler: 'rdp' # reduce on plateau
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+    image_channels: 3
+
+beit_data_augmentation: &BEIT_DATA_AUGMENTATION
+    <<: *BEIT
+    do_data_augmentation: !!bool True
+    weight_saving_interval: 20
+    outer_lr: 0.00006
+    epochs: 50
+
+    model_weights_path: './weights/29 beit_data_augmentation_classification.pth'
+    phi_x_list_path: './weights/29 beit_data_augmentation_phi_x.pth'
+    phi_y_list_path: './weights/29 beit_data_augmentation_phi_y.pth'
+
+beit_cannonicalization: &BEIT_CANNONICALIZATION
+    <<: *BEIT
+    do_cannonicalization: !!bool True
+    cannon_num_layers: 2
+    cannon_num_channels: [3, 4, 1]
+    kernel_sizes: [3, 3, 3]
+    outer_lr: 0.00001
+
+    surrogate_lr: 0.001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 beit_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 beit_cannonicalization.pth'
+    phi_x_list_path: './weights/29 beit_cannonicalization_phi_x.pth'
+    phi_y_list_path: './weights/29 beit_cannonicalization_phi_y.pth'
+
+beit_equiv:
+    <<: *BEIT
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.001
+
+    outer_lr: 0.00001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 beit_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 beit_equiv_classification.pth'
+    phi_x_list_path: './weights/29 beit_equiv_classification_phi_x.pth'
+    phi_y_list_path: './weights/29 beit_equiv_classification_phi_y.pth'
+
+ada_beit_dem: &ADA_BEIT_DEM
+    <<: *BEIT
+    epochs: 40
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    surrogate_model: !!bool True
+    deep_equlibrium_mode: !!bool True
+
+    weight_saving_interval: 20
+
+    equivariance_loss: !!bool True
+
+    unique_optima_loss: !!bool True
+    equivariance_loss_weight: 0
+    surrogate_equivariance_loss_weight: 0
+    phi_prior_loss_weight: 0
+    phi_diff_loss_weight: 0
+    phi_diff_increment_per_epoch: 0
+    phi_diff_loss_weight_max: 3.0
+    surrogate_task_loss_weight: 1.0
+
+    clip_gradient: !!bool True
+    gradient_clip_value: 1.0
+    surrogate_gradient_clip_value: 0.5
+    surrogate_lr: 0.0003
+    outer_lr: 0.00001
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 3
+
+    num_phi_layers: 2
+    inner_lr: [0.05, 0.05]
+    adapter_coarse_resolution: [4, 4]
+
+    skip_input_augmentation: !!bool True
+
+    adapter_num_layers: 4
+    adapter_channels: [3, 32, 64, 128, 128]
+    adapter_filter_size: [3, 3, 3, 3]
+    adapter_pool_rate: [2, 2, 2, 1]
+    inner_epochs: 5
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 beit_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/39 ada_beit_dem_classification.pth'
+    phi_x_list_path: './weights/39 ada_beit_dem_classification_phi_x.pth'
+    phi_y_list_path: './weights/39 ada_beit_dem_classification_phi_y.pth'
+
+########################################################
+# DeiT configuration
+########################################################
+
+deit: &DEIT
+    <<: *BASE_CONFIG
+    model: 'deit'
+
+    image_format: "PIL"
+    batch_size: 64
+    outer_lr: 0.0001
+    epochs: 20
+    scheduler: 'rdp' # reduce on plateau
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+    image_channels: 3
+
+deit_data_augmentation: &DEIT_DATA_AUGMENTATION
+    <<: *DEIT
+    do_data_augmentation: !!bool True
+    outer_lr: 0.0001
+    weight_saving_interval: 20
+    epochs: 50
+
+    model_weights_path: './weights/29 deit_data_augmentation_classification.pth'
+    phi_x_list_path: './weights/29 deit_data_augmentation_phi_x.pth'
+    phi_y_list_path: './weights/29 deit_data_augmentation_phi_y.pth'
+
+deit_cannonicalization: &DEIT_CANNONICALIZATION
+    <<: *DEIT
+    do_cannonicalization: !!bool True
+    cannon_num_layers: 2
+    cannon_num_channels: [3, 4, 1]
+    kernel_sizes: [3, 3, 3]
+    outer_lr: 0.00001
+
+    surrogate_lr: 0.001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 deit_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 deit_cannonicalization.pth'
+    phi_x_list_path: './weights/29 deit_cannonicalization_phi_x.pth'
+    phi_y_list_path: './weights/29 deit_cannonicalization_phi_y.pth'
+
+deit_equiv:
+    <<: *DEIT
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.001
+
+    outer_lr: 0.00001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 deit_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 deit_equiv_classification.pth'
+    phi_x_list_path: './weights/29 deit_equiv_classification_phi_x.pth'
+    phi_y_list_path: './weights/29 deit_equiv_classification_phi_y.pth'
+
+ada_deit_dem: &ADA_DEIT_DEM
+    <<: *DEIT
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    surrogate_model: !!bool True
+    deep_equlibrium_mode: !!bool True
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.1
+
+    unique_optima_loss: !!bool True
+    phi_diff_loss_weight: 0.1
+    phi_prior_loss_weight: 0.1
+    phi_diff_increment_per_epoch: 0.0
+    phi_diff_loss_weight_max: 0.2
+    surrogate_task_loss_weight: 0.1
+    surrogate_equivariance_loss_weight: 1.0
+
+    clip_gradient: !!bool True
+    gradient_clip_value: 1.0
+    surrogate_gradient_clip_value: 0.5
+    surrogate_lr: 0.001
+    outer_lr: 0.000002
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 3
+
+    num_phi_layers: 2
+    inner_lr: [0.05, 0.05]
+    adapter_coarse_resolution: [4, 4]
+
+    skip_input_augmentation: !!bool True
+
+    adapter_num_layers: 2
+    adapter_channels: [3, 32, 64, 64]
+    adapter_filter_size: [3, 3, 3]
+    adapter_pool_rate: [2, 2, 1]
+    inner_epochs: 5
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 deit_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/39 ada_deit_dem_classification.pth'
+    phi_x_list_path: './weights/39 ada_deit_dem_classification_phi_x.pth'
+    phi_y_list_path: './weights/39 ada_deit_dem_classification_phi_y.pth'
+ada_deit_dem_1: &ADA_DEIT_DEM_1
+    <<: *ADA_DEIT_DEM
+    do_pre_training_eval: !!bool True
+    epochs: 40
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 3
+    skip_input_augmentation: !!bool True
+
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+
+    num_phi_layers: 2
+    adapter_coarse_resolution: [4, 4]
+
+    weight_saving_interval: 20
+    outer_lr: 0.00001
+    surrogate_lr: 0.02
+
+    equivariance_loss_weight: 0
+    surrogate_equivariance_loss_weight: 0
+    phi_prior_loss_weight: 0
+    phi_diff_loss_weight: 0
+    phi_diff_increment_per_epoch: 0
+    phi_diff_loss_weight_max: 3.0
+    surrogate_task_loss_weight: 1.0
+
+    unique_optima_loss: !!bool True
+    equivariance_loss: !!bool True
+
+########################################################
+# DINO configuration
+########################################################
+
+dino: &DINO
+    <<: *BASE_CONFIG
+    model: 'dino'
+
+    image_format: "PIL"
+    batch_size: 64
+    outer_lr: 0.0001
+    epochs: 20
+    scheduler: 'rdp' # reduce on plateau
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+    image_channels: 3
+
+dino_data_augmentation: &DINO_DATA_AUGMENTATION
+    <<: *DINO
+    do_data_augmentation: !!bool True
+    weight_saving_interval: 20
+    outer_lr: 0.00001
+    epochs: 50
+
+    model_weights_path: './weights/29 dino_data_augmentation_classification.pth'
+    phi_x_list_path: './weights/29 dino_data_augmentation_phi_x.pth'
+    phi_y_list_path: './weights/29 dino_data_augmentation_phi_y.pth'
+
+dino_cannonicalization: &DINO_CANNONICALIZATION
+    <<: *DINO
+    do_cannonicalization: !!bool True
+    cannon_num_layers: 2
+    cannon_num_channels: [3, 4, 1]
+    kernel_sizes: [3, 3, 3]
+    outer_lr: 0.00001
+
+    surrogate_lr: 0.001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 dino_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 dino_cannonicalization.pth'
+    phi_x_list_path: './weights/29 dino_cannonicalization_phi_x.pth'
+    phi_y_list_path: './weights/29 dino_cannonicalization_phi_y.pth'
+
+dino_equiv:
+    <<: *DINO
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.001
+    outer_lr: 0.00001
+    epochs: 40
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 dino_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 dino_equiv_classification.pth'
+    phi_x_list_path: './weights/29 dino_equiv_classification_phi_x.pth'
+    phi_y_list_path: './weights/29 dino_equiv_classification_phi_y.pth'
+
+ada_dino_dem: &ADA_DINO_DEM
+    <<: *DINO
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    surrogate_model: !!bool True
+    deep_equlibrium_mode: !!bool True
+
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.1
+
+    unique_optima_loss: !!bool True
+    phi_diff_loss_weight: 0.1
+    phi_prior_loss_weight: 0.1
+    phi_diff_increment_per_epoch: 0.0
+    phi_diff_loss_weight_max: 0.2
+    surrogate_task_loss_weight: 0.1
+    surrogate_equivariance_loss_weight: 1.0
+
+    clip_gradient: !!bool True
+    gradient_clip_value: 1.0
+    surrogate_gradient_clip_value: 0.5
+    surrogate_lr: 0.001
+    outer_lr: 0.000002
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 3
+
+    num_phi_layers: 3
+    inner_lr: [0.05, 0.05]
+    adapter_coarse_resolution: [4, 4, 4]
+
+    skip_input_augmentation: !!bool True
+
+    adapter_num_layers: 2
+    adapter_channels: [3, 32, 64, 64]
+    adapter_filter_size: [3, 3, 3]
+    adapter_pool_rate: [2, 2, 1]
+    inner_epochs: 5
+
+    fine_tune: !!bool True
+    do_pre_training_eval: !!bool True
+    fine_tune_model_path: './weights/49 dino_data_augmentation_classification.pth'
+
+    model_weights_path: './weights/29 ada_dino_dem_classification.pth'
+    phi_x_list_path: './weights/29 ada_dino_dem_classification_phi_x.pth'
+    phi_y_list_path: './weights/29 ada_dino_dem_classification_phi_y.pth'
+
+ada_dino_dem_1: &ADA_DINO_DEM_1
+    <<: *ADA_DINO_DEM
+    epochs: 40
+    do_pre_training_eval: !!bool True
+
+    train_surrogate_only: !!bool False
+    alternate_training: !!bool True
+    alternate_interval: 5
+    skip_input_augmentation: !!bool True
+
+    weight_saving_interval: 20
+    outer_lr: 0.000001
+    surrogate_lr: 0.001
+    equivariance_loss_weight: 0
+    surrogate_equivariance_loss_weight: 0
+    phi_prior_loss_weight: 0
+    phi_diff_loss_weight: 0
+    phi_diff_increment_per_epoch: 0
+    phi_diff_loss_weight_max: 3.0
+    surrogate_task_loss_weight: 1.0
+
+    scheduler_kwargs: {'patience': 2, 'factor': 0.5}
+
+    num_phi_layers: 3
+    adapter_coarse_resolution: [4, 4, 4]
+
+    # all surrogate loss
+    unique_optima_loss: !!bool True
+    equivariance_loss: !!bool True
+
+    model_weights_path: './weights/29 ada_dino_dem_1_classification.pth'
+    phi_x_list_path: './weights/29 ada_dino_dem_1_classification_phi_x.pth'
+    phi_y_list_path: './weights/29 ada_dino_dem_1_classification_phi_y.pth'
+    surrogate_weights_path: './weights/29 ada_dino_dem_1_classification_surrogate.pth'
