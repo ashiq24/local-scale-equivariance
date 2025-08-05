@@ -1,33 +1,167 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
-  <meta charset="UTF-8" />
-  <title>Local-Scale-Equivariance</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Scale Equivariance with a Latent Deep Equilibrium Canonicalizer</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- MathJax for LaTeX rendering -->
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+  <!-- Fonts & basic colours -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; line-height: 1.6; }
-    section { margin-top: 3rem; }
+    body{font-family:'Inter',sans-serif;background:#F8F9FA;color:#212529}
+    .nav-link{transition:color .3s,border-bottom-color .3s;border-bottom:2px solid transparent}
+    .nav-link:hover,.nav-link.active{color:#0D6EFD;border-bottom-color:#0D6EFD}
   </style>
 </head>
-<body>
-  <section id="title">
-    <h1>Local-Scale-Equivariance</h1>
-    <p><em>Placeholder for paper title & authors</em></p>
-  </section>
+<body class="antialiased">
+  <!-- =================== NAVIGATION =================== -->
+  <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+    <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+      <h1 class="text-xl md:text-2xl font-bold text-gray-800">Local Scale Equivariance</h1>
+      <div class="hidden md:flex space-x-8">
+        <a href="#problem" class="nav-link pb-1">The Problem</a>
+        <a href="#contributions" class="nav-link pb-1">Contributions</a>
+        <a href="#theory" class="nav-link pb-1">Theory</a>
+        <a href="#method" class="nav-link pb-1">Method</a>
+        <a href="#results" class="nav-link pb-1">Results</a>
+      </div>
+      <!-- Mobile menu toggle -->
+      <button id="mobile-menu-button" class="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/></svg>
+      </button>
+    </nav>
+    <div id="mobile-menu" class="hidden md:hidden">
+      <a href="#problem" class="block py-2 px-6 text-sm text-gray-700 hover:bg-gray-100">The Problem</a>
+      <a href="#contributions" class="block py-2 px-6 text-sm text-gray-700 hover:bg-gray-100">Contributions</a>
+      <a href="#theory" class="block py-2 px-6 text-sm text-gray-700 hover:bg-gray-100">Theory</a>
+      <a href="#method" class="block py-2 px-6 text-sm text-gray-700 hover:bg-gray-100">Method</a>
+      <a href="#results" class="block py-2 px-6 text-sm text-gray-700 hover:bg-gray-100">Results</a>
+    </div>
+  </header>
 
-  <section id="method">
-    <h2>Method</h2>
-    <p><!-- High-level algorithm description goes here --></p>
-  </section>
+  <main class="container mx-auto px-6 py-12">
+    <!-- =================== INTRO =================== -->
+    <section id="intro" class="text-center mb-16">
+      <h2 class="text-4xl font-bold mb-4 text-gray-800">Local Scale Equivariance with a Latent Deep Equilibrium Canonicalizer</h2>
+      <p class="text-lg text-gray-600 max-w-4xl mx-auto">Md Ashiqur Rahman, Chiao-An Yang, Michael N. Cheng, Lim Jun Hao, Jeremiah Jiang, Teck-Yian Lim, Raymond A. Yeh</p>
+      <p class="text-sm text-gray-500 mt-4">Purdue University & DSO National Laboratories</p>
+    </section>
 
-  <section id="math">
-    <h2>Math</h2>
-    <p><!-- LaTeX equations rendered via MathJax --></p>
-  </section>
+    <!-- =================== PROBLEM =================== -->
+    <section id="problem" class="mb-24 scroll-mt-20">
+      <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Global vs. Local Scaling</h3>
+      <div class="max-w-5xl mx-auto grid md:grid-cols-2 gap-10 items-center">
+        <!-- Global scaling description -->
+        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <h4 class="text-2xl font-semibold mb-3 text-center text-gray-700">🌍 Global Scaling</h4>
+          <p class="text-gray-600 leading-relaxed">Uniformly resizes the entire image — like zooming in/out with a camera. Widely studied but rarely encountered in isolation.</p>
+          <img src="assets/scale_dog.gif" alt="Global scaling example" class="mt-4 rounded-md mx-auto">
+        </div>
+        <!-- Local scaling description -->
+        <div class="bg-white p-6 rounded-lg shadow-md border border-blue-300 ring-2 ring-blue-200">
+          <h4 class="text-2xl font-semibold mb-3 text-center text-blue-600">🎯 Local Scaling</h4>
+          <p class="text-gray-600 leading-relaxed">Different objects change size independently. A closer dog appears larger while distant mountains stay small. This complex, real-world phenomenon breaks assumptions made by global-scale methods.</p>
+          <img src="assets/bird_1.gif" alt="Local scaling example" class="mt-4 rounded-md mx-auto">
+        </div>
+      </div>
+    </section>
 
-  <section id="results">
-    <h2>Results</h2>
-    <p><!-- GIFs/figures/tables showcasing performance --></p>
-  </section>
+    <!-- =================== CONTRIBUTIONS =================== -->
+    <section id="contributions" class="mb-24 scroll-mt-20">
+      <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Our Contributions</h3>
+      <ol class="list-decimal list-inside max-w-3xl mx-auto text-gray-700 space-y-3 text-lg">
+        <li>We formalize <span class="font-medium">monotone scaling</span> as a mathematically tractable proxy for local image warping and prove it forms a group.</li>
+        <li>We propose the <span class="font-medium">Deep Equilibrium Canonicalizer (DEC)</span>, a latent module that learns to undo local scaling via an implicit fixed-point solver.</li>
+        <li>We demonstrate consistent performance gains on ImageNet, MNIST, and semantic segmentation benchmarks across multiple backbones.</li>
+      </ol>
+    </section>
+
+    <!-- =================== THEORY =================== -->
+    <section id="theory" class="mb-24 scroll-mt-20">
+      <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Monotone Scaling: A Clean Approximation</h3>
+      <div class="max-w-5xl mx-auto grid md:grid-cols-2 gap-10 items-start">
+        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <h4 class="text-2xl font-semibold mb-3 text-gray-700">1D Intuition: Stretching a Rubber Band</h4>
+          <p class="text-gray-600 leading-relaxed">Global scaling stretches the whole band evenly. Monotone scaling lets each segment stretch differently, defined by a strictly increasing mapping \(l(x)\). The operation
+          \[ S(f; l)(x) = f\big(l^{-1}(x)\big) \] preserves order and invertibility.</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <h4 class="text-2xl font-semibold mb-3 text-gray-700">2D Extension: Warping an Image Grid</h4>
+          <p class="text-gray-600 leading-relaxed">Applying independent monotone mappings to rows & columns yields a smooth, non-folding warp. Requiring commutative Jacobians ensures the set is closed under composition & inversion — a <em>group</em>.</p>
+          <p class="mt-4 text-sm text-gray-500 text-center">\( S(I; l)(x,y) = I\big(l^{-1}(x,y)\big) \)</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== METHOD =================== -->
+    <section id="method" class="mb-24 scroll-mt-20">
+      <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Deep Equilibrium Canonicalizer (DEC)</h3>
+      <div class="bg-white p-8 rounded-lg shadow-lg border border-gray-200 max-w-4xl mx-auto">
+        <p class="text-gray-600 mb-6">DEC amortizes the expensive optimization usually required for canonicalization. A DEQ module predicts optimal warp parameters as a fixed point of a learned update rule, applied <em>inside</em> the network's feature space.</p>
+        <ol class="space-y-4">
+          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">1.</span><p>Feature map \(F_k\) enters the DEC.</p></li>
+          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">2.</span><p>The DEQ solver rapidly predicts \(\Phi_k\), the local scaling parameters.</p></li>
+          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">3.</span><p>We canonicalize the features via \(S^{-1}(F_k; \Phi_k)\).</p></li>
+          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">4.</span><p>The standard layer processes the normalized features.</p></li>
+          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">5.</span><p>The warp is re-applied so the next layer receives equivariant representations.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- =================== RESULTS =================== -->
+    <section id="results" class="mb-24 scroll-mt-20">
+      <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Qualitative Results</h3>
+      <div class="max-w-5xl mx-auto grid md:grid-cols-3 gap-8">
+        <figure class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+          <img src="assets/white_dog.gif" alt="Result GIF 1" class="rounded-md">
+          <figcaption class="mt-2 text-center text-sm text-gray-600">Robust tracking across scale changes</figcaption>
+        </figure>
+        <figure class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+          <img src="assets/bird_2.gif" alt="Result GIF 2" class="rounded-md">
+          <figcaption class="mt-2 text-center text-sm text-gray-600">Equivariant bird segmentation</figcaption>
+        </figure>
+        <figure class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+          <img src="assets/phone.gif" alt="Result GIF 3" class="rounded-md">
+          <figcaption class="mt-2 text-center text-sm text-gray-600">Consistency under object zoom</figcaption>
+        </figure>
+      </div>
+      <p class="mt-12 text-center text-gray-500 text-sm">For full quantitative results, see our <a href="https://arxiv.org/abs/XXXX.XXXXX" class="text-blue-600 underline">ICCV 2025 paper</a>.</p>
+    </section>
+  </main>
+
+  <!-- =================== FOOTER =================== -->
+  <footer class="bg-white mt-20 border-t">
+    <div class="container mx-auto px-6 py-6 text-center text-gray-600">
+      <p>&copy; 2025 Md Ashiqur Rahman et al. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- =================== JS: nav highlighting & mobile menu =================== -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const mobileBtn = document.getElementById('mobile-menu-button');
+      const mobileMenu = document.getElementById('mobile-menu');
+      mobileBtn.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
+
+      const navLinks = document.querySelectorAll('.nav-link, #mobile-menu a');
+      function setActive() {
+        let current = '';
+        document.querySelectorAll('main section').forEach(sec => {
+          if (window.pageYOffset >= sec.offsetTop - 120) current = sec.getAttribute('id');
+        });
+        navLinks.forEach(link => {
+          link.classList.remove('active','font-bold','text-blue-600');
+          if (link.getAttribute('href') === `#${current}`) link.classList.add('active','font-bold','text-blue-600');
+        });
+      }
+      window.addEventListener('scroll', setActive);
+      setActive();
+    });
+  </script>
 </body>
 </html>
