@@ -84,16 +84,18 @@
     <!-- =================== THEORY =================== -->
     <section id="theory" class="mb-24 scroll-mt-20">
       <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Monotone Scaling: A Clean Approximation</h3>
-      <div class="max-w-5xl mx-auto grid md:grid-cols-2 gap-10 items-start">
+      <div class="max-w-5xl mx-auto grid gap-10 items-start">
         <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h4 class="text-2xl font-semibold mb-3 text-gray-700">1D Intuition: Stretching a Rubber Band</h4>
           <p class="text-gray-600 leading-relaxed">Global scaling stretches the whole band evenly. Monotone scaling lets each segment stretch differently, defined by a strictly increasing mapping \(l(x)\). The operation
           \[ S(f; l)(x) = f\big(l^{-1}(x)\big) \] preserves order and invertibility.</p>
+          <img src="assets/placeholder_1d.png" alt="1D monotone scaling placeholder" class="mt-4 rounded-md mx-auto">
         </div>
         <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h4 class="text-2xl font-semibold mb-3 text-gray-700">2D Extension: Warping an Image Grid</h4>
           <p class="text-gray-600 leading-relaxed">Applying independent monotone mappings to rows & columns yields a smooth, non-folding warp. Requiring commutative Jacobians ensures the set is closed under composition & inversion — a <em>group</em>.</p>
           <p class="mt-4 text-sm text-gray-500 text-center">\( S(I; l)(x,y) = I\big(l^{-1}(x,y)\big) \)</p>
+          <img src="assets/placeholder_2d.png" alt="2D monotone scaling placeholder" class="mt-4 rounded-md mx-auto">
         </div>
       </div>
     </section>
