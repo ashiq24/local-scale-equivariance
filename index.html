@@ -73,12 +73,25 @@
 
     <!-- =================== CONTRIBUTIONS =================== -->
     <section id="contributions" class="mb-24 scroll-mt-20">
-      <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Our Contributions</h3>
-      <ol class="list-decimal list-inside max-w-3xl mx-auto text-gray-700 space-y-3 text-lg">
-        <li>We formalize <span class="font-medium">monotone scaling</span> as a mathematically tractable proxy for local image warping and prove it forms a group.</li>
-        <li>We propose the <span class="font-medium">Deep Equilibrium Canonicalizer (DEC)</span>, a latent module that learns to undo local scaling via an implicit fixed-point solver.</li>
-        <li>We demonstrate consistent performance gains on ImageNet, MNIST, and semantic segmentation benchmarks across multiple backbones.</li>
-      </ol>
+      <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Key Contributions</h3>
+      <div class="space-y-6 max-w-4xl mx-auto">
+        <div class="bg-white border-l-4 border-blue-600 shadow-sm p-4 rounded-md">
+          <h4 class="font-semibold text-blue-600 mb-1">Local Scale Equivariance</h4>
+          <p class="text-gray-700">We address the realistic challenge of objects appearing at different scales in different image regions by introducing a principled formulation of local (not global) scaling.</p>
+        </div>
+        <div class="bg-white border-l-4 border-blue-600 shadow-sm p-4 rounded-md">
+          <h4 class="font-semibold text-blue-600 mb-1">Monotone Scaling Group</h4>
+          <p class="text-gray-700">We approximate local scaling via invertible, monotonic transformations that form a mathematical group, enabling equivariant modeling.</p>
+        </div>
+        <div class="bg-white border-l-4 border-blue-600 shadow-sm p-4 rounded-md">
+          <h4 class="font-semibold text-blue-600 mb-1">Deep Equilibrium Canonicalizer (DEC)</h4>
+          <p class="text-gray-700">We propose a latent canonicalizer based on deep equilibrium models to efficiently predict optimal scale transformations without iterative optimization.</p>
+        </div>
+        <div class="bg-white border-l-4 border-blue-600 shadow-sm p-4 rounded-md">
+          <h4 class="font-semibold text-blue-600 mb-1">Plug-and-Play Boost</h4>
+          <p class="text-gray-700">DEC improves scale consistency and accuracy across segmentation and classification tasks on multiple vision transformers — with minimal overhead and no retraining required.</p>
+        </div>
+      </div>
     </section>
 
     <!-- =================== THEORY =================== -->
