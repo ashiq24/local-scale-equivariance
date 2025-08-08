@@ -206,7 +206,7 @@ If you find this work useful, please cite:
 ```bibtex
 @inproceedings{rahman2025local,
   title={Local Scale Equivariance with Latent Deep Equilibrium Canonicalizer},
-  author={Rahman, Md Ashiqur and Yang, Chiao-An and Cheng, Michael N. and Lim, Jun Hao and Jiang, Jeremiah and Lim, Teck-Yian and Yeh, Raymond A.},
+  author={Md Ashiqur Rahman and Chiao-An Yang and Michael N. Cheng and Jun Hao Lim and Jeremiah Jiang and Teck-Yian Lim and Raymond A. Yeh},
   booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
   year={2025}
 }
