@@ -2,7 +2,7 @@
 
 📢 **Accepted at ICCV 2025** • 🌐 [![Project Page](https://img.shields.io/badge/Project-Website-blue)](https://ashiq24.github.io/local-scale-equivariance/)
 
-[Md Ashiqur Rahman¹](mailto:rahman79@purdue.edu), [Chiao-An Yang¹](mailto:yang2892@purdue.edu), [Michael N. Cheng²](mailto:mcheng@dso.org.sg), [Lim Jun Hao²](mailto:ljunhao@dso.org.sg), [Jeremiah Jiang²](mailto:jjiang@dso.org.sg), [Teck-Yian Lim²](mailto:tylim@dso.org.sg), [Raymond A. Yeh¹](mailto:raymond.yeh@purdue.edu)
+[Md Ashiqur Rahman¹](mailto:rahman79@purdue.edu), [Chiao-An Yang¹](mailto:yang2892@purdue.edu), [Michael N. Cheng¹](mailto:cheng610@purdue.edu), [Lim Jun Hao²](mailto:ljunhao@dso.org.sg), [Jeremiah Jiang²](mailto:jjiang@dso.org.sg), [Teck-Yian Lim²](mailto:tylim@dso.org.sg), [Raymond A. Yeh¹](mailto:raymond.yeh@purdue.edu)
 
 ¹Purdue University, ²DSO National Laboratories
 
