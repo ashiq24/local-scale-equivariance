@@ -5,6 +5,10 @@
 [Md Ashiqur Rahman¹](mailto:rahman79@purdue.edu), [Chiao-An Yang¹](mailto:yang2892@purdue.edu), [Michael N. Cheng¹](mailto:cheng610@purdue.edu), [Lim Jun Hao²](mailto:ljunhao@dso.org.sg), [Jeremiah Jiang²](mailto:jjiang@dso.org.sg), [Teck-Yian Lim²](mailto:tylim@dso.org.sg), [Raymond A. Yeh¹](mailto:raymond.yeh@purdue.edu)
 
 ¹Purdue University, ²DSO National Laboratories
+| Global Scaling | Local Scaling |
+|----------------|---------------|
+| <img src="https://github.com/ashiq24/local-scale-equivariance/blob/gh-pages/assets/bird_1_gscale.gif" width="450"/> | <img src="https://github.com/ashiq24/local-scale-equivariance/blob/gh-pages/assets/bird_1.gif" width="450"/> |
+
 
 ## Abstract
 
