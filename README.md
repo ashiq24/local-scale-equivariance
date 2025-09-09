@@ -80,7 +80,7 @@ conda activate inpaint
 
 ### ImageNet
 - **Required**: Standard ImageNet-1K dataset
-- **Multi-Scale ImageNet**: Generated using our data generation pipeline
+- **Multi-Scale ImageNet**: Generated using our data generation pipeline. Available on Huggingface (https://huggingface.co/datasets/ashiq24/Multi_Scale_ImageNet). 
 
 ### Custom Multi-Scale Dataset Generation
 ```bash
