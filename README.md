@@ -28,6 +28,11 @@ Our method consistently improves both accuracy and scale consistency metrics acr
 3. **Latent canonicalization** that integrates with any pretrained architecture
 4. **Extensive validation** across 6 architectures on MNIST, and ImageNet
 
+
+## Workflow of DEC Module
+<video src="https://github.com/user-attachments/assets/d57409d6-ba93-47c8-b69e-da45a1ac371b" 
+       width="200" height="200" controls>
+</video>
 ## 📋 Table of Contents
 
 - [Installation](#installation)
