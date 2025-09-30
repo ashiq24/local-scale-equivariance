@@ -100,11 +100,26 @@
       <div class="grid gap-10 items-start">
         <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h4 class="text-2xl font-semibold mb-3 text-gray-700">1D Intuition: Stretching a Rubber Band</h4>
-          <p class="text-gray-600 leading-relaxed">Consider a function \( f(x) \) on \([0,1]\). <strong>Global scaling</strong> rescales the domain uniformly:</p>
-          <p class="text-center text-gray-700 my-3">\( R_a[f](x) = f(a^{-1} x) \)</p>
-          <p class="text-gray-600 leading-relaxed">To capture <em>non-uniform</em> stretch, we introduce a strictly increasing warp \( l \) and define:</p>
-          <p class="text-center text-gray-700 my-3">\( S(f; l)(x) = f(l^{-1}(x)) \)</p>
-          <p class="text-gray-600 leading-relaxed"><em>Intuition —</em> imagine a rubber band: instead of pulling both ends evenly, you stretch some segments more than others, but never fold it. The derivative \( \frac{dl}{dx} \) reveals the local stretch / compression rate.</p>
+          <p class="text-gray-600 leading-relaxed">
+            To build an intuition for local scale equivariance, consider a one-dimensional function \( f(x) \) defined on the interval \([0,1]\).
+            Traditionally, <strong>global scaling</strong> uniformly resizes the entire domain, expressed as:
+          </p>
+          <p class="text-center text-gray-700 my-3">
+            \( R_a[f](x) = f(a^{-1} x) \)
+          </p>
+          <p class="text-gray-600 leading-relaxed">
+            where \( a \) is a constant scaling factor. This operation applies a uniform stretch or compression across the entire function.
+          </p>
+          <p class="text-gray-600 leading-relaxed">
+            In contrast, to model <em>non-uniform</em> or monotone scale changes, we introduce a strictly increasing and invertible warp function \( l: [0,1] \to [0,1] \).
+            This allows us to define a locally scaled function as:
+          </p>
+          <p class="text-center text-gray-700 my-3">
+            \( S(f; l)(x) = f(l^{-1}(x)) \)
+          </p>
+          <p class="text-gray-600 leading-relaxed">
+            Conceptually, this is akin to stretching a rubber band: instead of pulling both ends evenly (global scaling), certain segments are stretched or compressed more than others, but the order of points is always preserved. The local rate of stretch or compression at any point \( x \) is given by the derivative \( \frac{dl}{dx} \). This formulation ensures that the transformation is monotonic and invertible, crucial properties for maintaining structural integrity.
+          </p>
           <div class="mt-4 grid grid-cols-2 gap-4">
             <figure class="text-center">
               <img src="assets/function-f_and_l.png" alt="Original 1D function" class="rounded-md mx-auto">
@@ -120,7 +135,7 @@
           <h4 class="text-2xl font-semibold mb-3 text-gray-700">2D Extension: Warping an Image Grid</h4>
         
           <p class="text-gray-600 leading-relaxed">
-            We extend 1D monotone scaling to 2D images \( I(x, y) \in [0,1]^2 \to \mathbb{R} \) by applying a smooth, invertible warp \( l(x, y) = (l_X(x, y), l_Y(x, y)) \).
+            Extending this concept to two-dimensional images \( I(x, y): [0,1]^2 \to \mathbb{R} \), we apply a smooth, invertible spatial warp \( l(x, y) = (l_X(x, y), l_Y(x, y)) \). This warp maps the original image coordinates to new coordinates, defining the locally scaled image as:
           </p>
         
           <p class="text-center text-gray-700 my-3">
@@ -128,24 +143,25 @@
           </p>
         
           <p class="text-gray-600 leading-relaxed">
-            Here, \( l_X \) controls local horizontal scaling and \( l_Y \) controls vertical scaling. The result is a gentle deformation of the image where pixel order is preserved: grid lines bend smoothly, but never cross.
-          </p>
-        
-          <p class="text-gray-600 leading-relaxed">
-            Unlike rigid global rescaling, this allows different parts of the image to stretch or compress independently, mimicking realistic viewpoint and depth-based distortions.
+            Here, \( l_X \) and \( l_Y \) are strictly increasing functions that independently control the local horizontal and vertical scaling, respectively. The key characteristic of this transformation is that it deforms the image grid smoothly without tearing or folding, thereby preserving the topological order of pixels. This contrasts with rigid global rescaling by allowing different regions of the image to undergo independent scaling, which more accurately reflects realistic viewpoint and depth-based distortions.
           </p>
         
           <p class="bg-indigo-50 border-l-4 border-indigo-600 p-4 rounded-md shadow-sm text-gray-800 leading-relaxed mt-6">
-            <strong>Theorem&nbsp</strong> The set of such 2D monotone maps with commuting, symmetric positive-definite Jacobians forms a <em>group</em> under composition. This means:
-            transformations can be composed (closure), undone (invertibility), and include an identity (no change)—a perfect fit for equivariant modeling.
+            <strong>Theorem:&nbsp</strong> The set of such 2D monotone maps, characterized by commuting, symmetric positive-definite (SPD) Jacobians, forms a <em>group</em> under composition. This group structure implies three fundamental properties:
+            <ul class="list-disc list-inside ml-4 mt-2">
+              <li><strong>Closure:</strong> Composing two such transformations yields another valid transformation within the set.</li>
+              <li><strong>Invertibility:</strong> Every transformation has an inverse that can undo the scaling.</li>
+              <li><strong>Identity:</strong> An identity transformation exists, representing no change.</li>
+            </ul>
+            These properties are essential for developing robust equivariant models.
           </p>
         
           <p class="text-gray-600 leading-relaxed">
-            The <strong>Jacobian</strong> \( J_l(x, y) \) describes how locally the grid is scaled. If each local scaling stretches smoothly and consistently (i.e. SPD Jacobians that commute), then stacking such scalings remains valid and invertible.
+            The <strong>Jacobian matrix</strong> \( J_l(x, y) = \nabla l(x,y) \) quantifies the local scaling and deformation at each point \((x, y)\). For the transformations to form a group, the Jacobians must be symmetric positive-definite (ensuring local invertibility and non-folding) and commute (ensuring that the order of applying transformations does not affect the final outcome). This mathematical rigor underpins the ability to stack multiple such scalings while maintaining validity and invertibility.
           </p>
         
           <p class="text-gray-600 leading-relaxed">
-            <strong>Analogy:</strong> Imagine your image as an elastic fabric. Monotone scaling is like pulling this fabric gently in different directions without tearing or folding it. No matter how many times you apply such a stretch, the fabric remains smooth and untangled.
+            <strong>Analogy:</strong> Visualize an image as an elastic fabric. Monotone scaling is analogous to gently stretching or compressing this fabric in various directions without introducing tears or overlaps. Regardless of how many such smooth, untangling stretches are applied, the fabric's inherent structure remains preserved.
           </p>
         
           <div class="mt-4 grid grid-cols-2 gap-4">
@@ -169,8 +185,7 @@
       <div class="bg-white p-8 rounded-lg shadow-lg border border-gray-200 space-y-6">
     
         <p class="text-gray-600 leading-relaxed">
-          To handle local scaling equivariantly, we seek a <strong>canonical representation</strong> of features under spatial warps. 
-          Rather than solving an optimization per input, we use a <strong>Deep Equilibrium Model</strong> to find a fixed point:
+          To achieve local scaling equivariance, our method aims to transform input features into a <strong>canonical representation</strong> that is invariant to spatial warps. Instead of relying on computationally expensive iterative optimization for each input, we leverage a <strong>Deep Equilibrium Model (DEQ)</strong> to efficiently find this canonicalizing warp. The DEQ operates by finding a fixed point \( \Phi_k \) of a learned update function:
         </p>
     
         <p class="text-center text-gray-700">
@@ -178,20 +193,20 @@
         </p>
     
         <p class="text-gray-600 leading-relaxed">
-          This fixed point approximates the solution to an energy minimization:
+          Here, \( F_k \) represents the input feature map, and \( \Phi_k \) is the predicted warp field. This fixed point solution effectively approximates the result of an energy minimization problem:
           \[
-          \Phi_k \approx \arg\min_\Phi \mathcal{E}(F_k; \Phi)
+          \Phi_k \\approx \\arg\\min_\\Phi \\mathcal{E}(F_k; \\Phi)
           \]
-          where \( \Phi_k \) is a warp field that brings \( F_k \) into a canonical, scale-normalized frame.
+          where \( \mathcal{E}(F_k; \Phi) \) is an energy function that quantifies how "non-canonical" the feature map \( F_k \) is under a given warp \( \Phi \). The optimal \( \Phi_k \) thus represents the warp required to bring \( F_k \) into its canonical, scale-normalized frame.
         </p>
     
         <p class="text-gray-600 leading-relaxed">
-          The network then performs its usual processing on the canonicalized feature \( \hat{F}_k = S^{-1}(F_k; \Phi_k) \), and re-applies \( \Phi_k \) afterward to preserve equivariance downstream.
+          Once the canonicalizing warp \( \Phi_k \) is determined, the network processes the canonicalized feature map \( \hat{F}_k = S^{-1}(F_k; \Phi_k) \). After this processing, \( \Phi_k \) is re-applied to the output features, ensuring that the subsequent layers receive representations that maintain equivariance to local scale changes. This "plug-and-play" approach allows our DEC to be integrated into existing deep learning architectures with minimal overhead, enhancing their robustness to local scale variations.
         </p>
     
         <figure class="text-center mt-6">
           <img src="assets/pipeline_v3.png" alt="DEC pipeline overview" class="rounded-md mx-auto">
-          <figcaption class="mt-2 text-sm text-gray-500">Figure: DEC predicts a canonicalizing warp in the latent space, enabling plug-and-play local scale equivariance.</figcaption>
+          <figcaption class="mt-2 text-sm text-gray-500">Figure: The Deep Equilibrium Canonicalizer (DEC) predicts a canonicalizing warp in the latent space, enabling plug-and-play local scale equivariance within deep learning pipelines.</figcaption>
         </figure>
       </div>
     </section>
