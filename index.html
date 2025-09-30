@@ -189,7 +189,7 @@
         <p class="text-gray-600 leading-relaxed">
           Here, \( F_k \) represents the input feature map, and \( \Phi_k \) is the predicted warp field. This fixed point solution effectively approximates the result of an energy minimization problem:
           \[
-          \Phi_k \\approx \\arg\\min_\\Phi \\mathcal{E}(F_k; \\Phi)
+          \Phi_k \approx \arg\min_\Phi \mathcal{E}(F_k; \Phi)
           \]
           where \( \mathcal{E}(F_k; \Phi) \) is an energy function that quantifies how "non-canonical" the feature map \( F_k \) is under a given warp \( \Phi \). The optimal \( \Phi_k \) thus represents the warp required to bring \( F_k \) into its canonical, scale-normalized frame.
         </p>
@@ -209,13 +209,13 @@
     <!-- =================== RESULTS =================== -->
     <section id="results" class="mb-24 scroll-mt-20 max-w-5xl mx-auto">
       <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Qualitative Results</h3>
-      <div class="grid md:grid-cols-2 gap-8">
+      <div class="space-y-8">
         <figure class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
-          <img src="assets/dog_box.gif" alt="Result GIF 1" class="rounded-md">
+          <img src="assets/dog_box.gif" alt="Result GIF 1" class="rounded-md mx-auto">
           <!-- <figcaption class="mt-2 text-center text-sm text-gray-600">Robust tracking across scale changes</figcaption> -->
         </figure>
         <figure class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
-          <img src="assets/dragon_box.gif" alt="Result GIF 2" class="rounded-md">
+          <img src="assets/dragon_box.gif" alt="Result GIF 2" class="rounded-md mx-auto">
           <!-- <figcaption class="mt-2 text-center text-sm text-gray-600">Equivariant bird segmentation</figcaption> -->
         </figure>
 
