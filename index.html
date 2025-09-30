@@ -18,7 +18,7 @@
     .nav-link:hover,.nav-link.active{color:#0D6EFD;border-bottom-color:#0D6EFD}
   </style>
 </head>
-<body class="antialiased">
+<body class="antialiased text-lg">
   <!-- =================== NAVIGATION =================== -->
   <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
     <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
@@ -46,16 +46,16 @@
 
   <main class="container mx-auto px-6 py-12">
     <!-- =================== INTRO =================== -->
-    <section id="intro" class="text-center mb-16">
+    <section id="intro" class="text-center mb-16 max-w-5xl mx-auto">
       <h2 class="text-4xl font-bold mb-4 text-gray-800">Local Scale Equivariance with Latent Deep Equilibrium Canonicalizer</h2>
       <p class="text-lg text-gray-600 max-w-4xl mx-auto">Md&nbsp;Ashiqur&nbsp;Rahman<sup>1</sup>, Chiao-An&nbsp;Yang<sup>1</sup>, Michael&nbsp;N.&nbsp;Cheng<sup>1</sup>, Lim&nbsp;Jun&nbsp;Hao<sup>2</sup>, Jeremiah&nbsp;Jiang<sup>2</sup>, Teck-Yian&nbsp;Lim<sup>2</sup>, Raymond&nbsp;A.&nbsp;Yeh<sup>1</sup></p>
       <p class="text-sm text-gray-500 mt-4"><sup>1</sup> Purdue University &nbsp;&nbsp;&nbsp; <sup>2</sup> DSO National Laboratories</p>
     </section>
 
     <!-- =================== PROBLEM =================== -->
-    <section id="problem" class="mb-24 scroll-mt-20">
+    <section id="problem" class="mb-24 scroll-mt-20 max-w-5xl mx-auto">
       <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Global vs. Local Scaling</h3>
-      <div class="max-w-5xl mx-auto grid md:grid-cols-2 gap-10 items-center">
+      <div class="grid md:grid-cols-2 gap-10 items-center">
         <!-- Global scaling description -->
         <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h4 class="text-2xl font-semibold mb-3 text-center text-gray-700">🌍 Global Scaling</h4>
@@ -72,9 +72,9 @@
     </section>
 
     <!-- =================== CONTRIBUTIONS =================== -->
-    <section id="contributions" class="mb-24 scroll-mt-20">
+    <section id="contributions" class="mb-24 scroll-mt-20 max-w-5xl mx-auto">
       <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Key Contributions</h3>
-      <div class="space-y-6 max-w-4xl mx-auto">
+      <div class="space-y-6">
         <div class="bg-white border-l-4 border-blue-600 shadow-sm p-4 rounded-md">
           <h4 class="font-semibold text-blue-600 mb-1">Local Scale Equivariance</h4>
           <p class="text-gray-700">We model realistic, spatially-varying scale changes rather than uniform global scaling.</p>
@@ -95,9 +95,9 @@
     </section>
 
     <!-- =================== THEORY =================== -->
-    <section id="theory" class="mb-24 scroll-mt-20">
+    <section id="theory" class="mb-24 scroll-mt-20 max-w-5xl mx-auto">
       <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Monotone Scaling: A Clean Approximation</h3>
-      <div class="max-w-5xl mx-auto grid gap-10 items-start">
+      <div class="grid gap-10 items-start">
         <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h4 class="text-2xl font-semibold mb-3 text-gray-700">1D Intuition: Stretching a Rubber Band</h4>
           <p class="text-gray-600 leading-relaxed">Consider a function \( f(x) \) on \([0,1]\). <strong>Global scaling</strong> rescales the domain uniformly:</p>
@@ -164,22 +164,9 @@
     </section>
 
     <!-- =================== METHOD =================== -->
-    <!-- <section id="method" class="mb-24 scroll-mt-20">
+    <section id="method" class="mb-24 scroll-mt-20 max-w-5xl mx-auto">
       <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Deep Equilibrium Canonicalizer (DEC)</h3>
-      <div class="bg-white p-8 rounded-lg shadow-lg border border-gray-200 max-w-4xl mx-auto">
-        <p class="text-gray-600 mb-6">DEC amortizes the expensive optimization usually required for canonicalization. A DEQ module predicts optimal warp parameters as a fixed point of a learned update rule, applied <em>inside</em> the network's feature space.</p>
-        <ol class="space-y-4">
-          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">1.</span><p>Feature map \(F_k\) enters the DEC.</p></li>
-          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">2.</span><p>The DEQ solver rapidly predicts \(\Phi_k\), the local scaling parameters.</p></li>
-          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">3.</span><p>We canonicalize the features via \(S^{-1}(F_k; \Phi_k)\).</p></li>
-          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">4.</span><p>The standard layer processes the normalized features.</p></li>
-          <li class="flex items-start"><span class="text-blue-500 font-bold mr-3">5.</span><p>The warp is re-applied so the next layer receives equivariant representations.</p></li>
-        </ol>
-      </div>
-    </section> -->
-    <section id="method" class="mb-24 scroll-mt-20">
-      <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Deep Equilibrium Canonicalizer (DEC)</h3>
-      <div class="bg-white p-8 rounded-lg shadow-lg border border-gray-200 max-w-4xl mx-auto space-y-6">
+      <div class="bg-white p-8 rounded-lg shadow-lg border border-gray-200 space-y-6">
     
         <p class="text-gray-600 leading-relaxed">
           To handle local scaling equivariantly, we seek a <strong>canonical representation</strong> of features under spatial warps. 
@@ -211,9 +198,9 @@
     
 
     <!-- =================== RESULTS =================== -->
-    <section id="results" class="mb-24 scroll-mt-20">
+    <section id="results" class="mb-24 scroll-mt-20 max-w-5xl mx-auto">
       <h3 class="text-3xl font-bold text-center mb-10 text-gray-800">Qualitative Results</h3>
-      <div class="max-w-5xl mx-auto grid md:grid-cols-2 gap-8">
+      <div class="grid md:grid-cols-2 gap-8">
         <figure class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
           <img src="assets/dog_box.gif" alt="Result GIF 1" class="rounded-md">
           <!-- <figcaption class="mt-2 text-center text-sm text-gray-600">Robust tracking across scale changes</figcaption> -->
