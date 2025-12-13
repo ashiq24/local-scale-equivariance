@@ -522,6 +522,7 @@ def main():
         bn_eps=args.bn_eps,
         scriptable=args.torchscript,
         checkpoint_path=args.initial_checkpoint,
+        img_size=args.img_size,  # Critical for DINOv2 which defaults to 518x518
         **factory_kwargs,
         **args.model_kwargs,
     )
@@ -545,6 +546,7 @@ def main():
         DEM = None
         local_scale_params = None
     
+    # Apply adaptation (either canonicalization or DEM-based)
     if adapter_config.do_cannonicalization:
         model = convert_model(model, adapter_config, local_scale_params, DEM)
         
@@ -723,7 +725,17 @@ def main():
     if args.torchcompile:
         # torch compile should be done after DDP
         assert has_compile, 'A version of torch w/ torch.compile() is required for --compile, possibly a nightly.'
-        model = torch.compile(model, backend=args.torchcompile, mode=args.torchcompile_mode)
+        
+        # NOTE: torch.compile is incompatible with DEM (torchdeq library) because:
+        # - DEM uses lambda functions and iterative fixed-point solvers
+        # - torch.compile tries to trace through the model's forward pass, which calls DEM
+        # - This causes InternalTorchDynamoError when tracing through torchdeq code
+        # Solution: Disable torch.compile when DEM is present
+        if DEM is not None:
+            _logger.warning('Disabling torch.compile because DEM (torchdeq) is incompatible with torch.compile')
+            _logger.warning('The model will run in eager mode. Consider removing --torchcompile flag for DEM models.')
+        else:
+            model = torch.compile(model, backend=args.torchcompile, mode=args.torchcompile_mode)
 
     # create the train and eval datasets
     if args.data and not args.data_dir:

@@ -182,3 +182,9 @@ results/*
 # Large model files
 datagen_ImNet/dino_sam_weights/*.pth
 !datagen_ImNet/imagenet_synsets.txt
+
+# any plan file
+plan.md
+plan.txt
+memory.md
+logs/*
