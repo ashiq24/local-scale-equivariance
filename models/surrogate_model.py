@@ -79,8 +79,8 @@ class DEMAdapter(nn.Module):
                                 ])
         # this module finds the equilibrium state of the DEM
         self.deq = [get_deq(ift=False,
-                            f_solver='anderson', f_max_iter=params.inner_epochs, f_tol=1e-6,
-                            b_solver='anderson', b_max_iter=params.inner_epochs + 3 , b_tol=1e-6) for _ in range(self.num_phi_layers)]
+                            f_solver='fixed_point_iter', f_max_iter=params.inner_epochs, f_tol=1e-6,
+                            b_solver='fixed_point_iter', b_max_iter=params.inner_epochs, b_tol=1e-6) for _ in range(self.num_phi_layers)]
         
         self.module_list = nn.ModuleList()
         for j in range(params.num_phi_layers):

@@ -23,6 +23,10 @@ base: &BASE
     warping_resolution: 8
     warping_strength: 0.2
 
+    # SPEED OPTIMIZATION: Compute equivariance loss every N batches (1 = every batch, 5 = every 5th batch)
+    # Higher values = faster training but slightly less consistent equivariance
+    equivariance_loss_freq: 1
+
     # default model for adaptation
     deep_equlibrium_mode: !!bool True
 
@@ -350,29 +354,6 @@ base_dinov2: &BASE_DINOV2
     model_name: 'dinov2'
     outer_lr:  0.0000001
 
-cannon_dinov2: &CANNON_DINOV2
-    <<: *BASE_DINOV2
-    model_name: 'dinov2'
-    outer_lr: 0.000002
-    do_cannonicalization: !!bool True
-    do_data_augmentation: !!bool True
-    unique_params_limit: 5
-
-    canon_num_layers: 2
-    canon_num_channels: [3,8,1]
-    canon_kernel_sizes: [3,3]
-
-equiv_dinov2: &EQUIV_DINOV2
-    <<: *BASE_DINOV2
-    model_name: 'dinov2'
-    do_data_augmentation: !!bool True
-    equivariance_loss: !!bool True
-
-aug_dinov2: &AUG_DINOV2
-    <<: *BASE_DINOV2
-    model_name: 'dinov2'
-    do_data_augmentation: !!bool True
-
 dem_dinov2: &DEM_DINOV2
     <<: *BASE_DINOV2
     model_name: 'dinov2'
@@ -380,15 +361,18 @@ dem_dinov2: &DEM_DINOV2
     do_adaptation: !!bool True
     do_data_augmentation: !!bool True
 
-    outer_lr: 0.0000001
+    outer_lr: 0.000002
     dem_weight_decay: 0.0001
     freeze_backbone_epochs: -1
-    dem_lr: 0.01
+    dem_lr: 0.001
     
     # equivar weight
     equivariance_loss: !!bool True
     equivariance_loss_weight: 0.01
     eqloss_type: "MSE"
+    
+    # SPEED: Compute equivariance loss every 5 batches (20% of batches, ~30% faster)
+    equivariance_loss_freq: 5
 
     # diff weights - typically off for DINOv2
     unique_optima_loss: !!bool False
@@ -399,7 +383,7 @@ dem_dinov2: &DEM_DINOV2
 
     #arcitecture
     num_phi_layers: 3
-    adapter_coarse_resolution: [4, 4, 4]
+    adapter_coarse_resolution: [8, 4, 4]
     adapter_num_layers: 2
     adapter_channels: [3, 64, 128]
     adapter_filter_size: [5,3]

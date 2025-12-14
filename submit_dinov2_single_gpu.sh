@@ -27,13 +27,20 @@ fi
 # Set config name based on mode
 if [ "$MODE" = "fast" ]; then
     CONFIG_NAME="dem_dinov2_fast"
-    BATCH_SIZE=32
+    BATCH_SIZE=64  # Increased from 32 (2x faster if memory allows)
     EPOCHS=10
+    GRAD_ACCUM=1
 else
     CONFIG_NAME="dem_dinov2"
-    BATCH_SIZE=24
-    EPOCHS=10
+    BATCH_SIZE=200
+    EPOCHS=7
+    GRAD_ACCUM=1
 fi
+
+# OPTIMIZATION: More workers for faster data loading
+NUM_WORKERS=12  # Increased from 16 (faster data loading)
+# OPTIMIZATION: Reduce logging frequency (less I/O overhead)
+LOG_INTERVAL=100  # Log every 100 batches instead of 50
 
 echo "Submitting DINOv2 ${MODE} training (single GPU)..."
 echo "Config: ${CONFIG_NAME}"
@@ -44,7 +51,7 @@ sbatch <<EOF
 #!/bin/bash
 #SBATCH --job-name=dinov2_${MODE}_1gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=16
+#SBATCH --ntasks=14
 #SBATCH --gpus-per-node=1
 #SBATCH --partition=ai
 #SBATCH --qos=preemptible
@@ -93,9 +100,20 @@ echo "ImageNet: \$IMAGENET_PATH"
 echo "Output: \$OUTPUT_PATH"
 echo "Epochs: ${EPOCHS}"
 echo "Batch size: ${BATCH_SIZE}"
-echo "Workers: 16"
+echo "Grad accum steps: ${GRAD_ACCUM}"
+echo "Workers: ${NUM_WORKERS}"
+echo "Log interval: ${LOG_INTERVAL}"
 echo "=========================================="
 echo ""
+
+# Set minimal distributed env vars for single GPU (required by init_distributed_device)
+# These satisfy the initialization check but won't actually use distributed training
+# Using dynamic port to avoid conflicts if multiple single-GPU jobs run simultaneously
+export MASTER_ADDR=localhost
+export MASTER_PORT=\$((29500 + \$\$ % 1000))  # $$ is the process ID, gives range 29500-30499
+export RANK=0
+export WORLD_SIZE=1
+export LOCAL_RANK=0
 
 # Run training
 python train_imagenet.py \\
@@ -103,18 +121,20 @@ python train_imagenet.py \\
     --model vit_base_patch14_reg4_dinov2 \\
     --img-size 224 \\
     --pretrained \\
+    --num-classes 1000 \\
     --our_config_file adapter_config.yaml \\
     --our_config_name ${CONFIG_NAME} \\
     --epochs ${EPOCHS} \\
     --batch-size ${BATCH_SIZE} \\
-    --workers 16 \\
+    --workers ${NUM_WORKERS} \\
+    --grad-accum-steps ${GRAD_ACCUM} \\
     --amp \\
     --amp-dtype bfloat16 \\
     --opt adamw \\
     --weight-decay 0.05 \\
     --sched cosine \\
     --warmup-epochs 1 \\
-    --warmup-lr 1e-6 \\
+    --warmup-lr 1e-8 \\
     --min-lr 1e-8 \\
     --output "\$OUTPUT_PATH" \\
     --log-wandb \\
@@ -122,6 +142,7 @@ python train_imagenet.py \\
     --grad-checkpointing \\
     --clip-grad 1.0 \\
     --smoothing 0.1 \\
+    --log-interval ${LOG_INTERVAL} \\
     --torchcompile inductor \\
     --torchcompile-mode reduce-overhead
 

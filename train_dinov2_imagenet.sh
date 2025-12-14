@@ -16,7 +16,7 @@
 # Example:
 #   bash train_dinov2_imagenet.sh fast /data/imagenet ./output/dinov2_fast
 #   bash train_dinov2_imagenet.sh standard /data/imagenet ./output/dinov2_full
-#
+#  bash train_dinov2_imagenet.sh standard  /home/rahman79/Desktop/ray_ashiq/Projects/local-scale-equivariance/logs/datasets/imagenet ./logs/output/test
 ################################################################################
 
 # Parse arguments
@@ -32,17 +32,22 @@ CONFIG_FILE="adapter_config.yaml"
 if [ "$MODE" = "fast" ]; then
     CONFIG_NAME="dem_dinov2_fast"
     EPOCHS=10
-    BATCH_SIZE=32
+    BATCH_SIZE=64  # Increased from 32 (2x faster if memory allows)
+    GRAD_ACCUM=1
 elif [ "$MODE" = "standard" ]; then
     CONFIG_NAME="dem_dinov2"
     EPOCHS=10
-    BATCH_SIZE=64
+    BATCH_SIZE=128
+    GRAD_ACCUM=1
 else
     echo "ERROR: Invalid mode '$MODE'. Use 'fast' or 'standard'"
     exit 1
 fi
 
-NUM_WORKERS=16
+# OPTIMIZATION: More workers for faster data loading
+NUM_WORKERS=24  # Increased from 16 (faster data loading)
+# OPTIMIZATION: Reduce logging frequency (less I/O overhead)
+LOG_INTERVAL=100  # Log every 100 batches instead of 50
 
 # GPU settings
 NUM_GPUS=$(nvidia-smi --list-gpus 2>/dev/null | wc -l)
@@ -88,6 +93,7 @@ if [ $NUM_GPUS -gt 1 ]; then
         --epochs "$EPOCHS" \
         --batch-size "$BATCH_SIZE" \
         --workers "$NUM_WORKERS" \
+        --grad-accum-steps "$GRAD_ACCUM" \
         --amp \
         --amp-dtype bfloat16 \
         --opt adamw \
@@ -102,6 +108,7 @@ if [ $NUM_GPUS -gt 1 ]; then
         --grad-checkpointing \
         --clip-grad 1.0 \
         --smoothing 0.1 \
+        --log-interval "$LOG_INTERVAL" \
         --torchcompile inductor \
         --torchcompile-mode reduce-overhead
         
@@ -129,6 +136,7 @@ elif [ $NUM_GPUS -eq 1 ]; then
         --epochs "$EPOCHS" \
         --batch-size "$BATCH_SIZE" \
         --workers "$NUM_WORKERS" \
+        --grad-accum-steps "$GRAD_ACCUM" \
         --amp \
         --amp-dtype bfloat16 \
         --opt adamw \
@@ -143,6 +151,7 @@ elif [ $NUM_GPUS -eq 1 ]; then
         --grad-checkpointing \
         --clip-grad 1.0 \
         --smoothing 0.1 \
+        --log-interval "$LOG_INTERVAL" \
         --torchcompile inductor \
         --torchcompile-mode reduce-overhead
 else
