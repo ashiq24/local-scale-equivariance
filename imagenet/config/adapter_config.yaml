@@ -361,7 +361,7 @@ dem_dinov2: &DEM_DINOV2
     do_adaptation: !!bool True
     do_data_augmentation: !!bool True
 
-    outer_lr: 0.000002
+    outer_lr: 0.00001
     dem_weight_decay: 0.0001
     freeze_backbone_epochs: -1
     dem_lr: 0.001
@@ -398,17 +398,36 @@ dem_dinov2: &DEM_DINOV2
     finetune_mode: 'complete'
 
 # Fast variant for initial training (reduced DEQ iterations)
-dem_dinov2_fast: &DEM_DINOV2_FAST
+dem_dinov2_v2: &DEM_DINOV2_V2
     <<: *DEM_DINOV2
-    
-    # Reduced DEQ iterations for faster training
-    inner_epochs: 3  # Reduced from 5 to 3 (40% faster DEM)
-    
-    # Fewer augmentation points for speed
-    augment_layer_id: [-1, 0]  # Input + first block only
-    
-    # Lighter DEM architecture
+    num_phi_layers: 3
+    adapter_coarse_resolution: [32, 10, 10]
+
     adapter_num_layers: 2
     adapter_channels: [3, 64, 128]
-    adapter_filter_size: [5, 3]
-    adapter_pool_rate: [4, 2]
+    adapter_filter_size: [5,3]
+    adapter_pool_rate: [4,2]
+
+    # -1 = input image, 0-11 = transformer blocks (DINOv2-base has 12 blocks)
+    # Apply deformation at: input, block 0, block 1
+    augment_layer_id: [-1, 4, 8]
+    # -100 = never undo (keep deformed throughout)
+    unaugment_layer_id: [-100]
+
+    outer_lr: 0.00005
+    dem_weight_decay: 0.00000001
+    freeze_backbone_epochs: -1
+    dem_lr: 0.00001
+
+dem_dinov2_v3: &DEM_DINOV2_V3
+    <<: *DEM_DINOV2_V2
+    adapter_coarse_resolution: [16, 8, 8]
+
+    adapter_num_layers: 2
+    adapter_channels: [3, 64, 128]
+    adapter_filter_size: [5,3]
+    adapter_pool_rate: [4,2]
+
+    outer_lr: 0.00002
+    dem_weight_decay: 0.0000001
+    dem_lr: 0.00005

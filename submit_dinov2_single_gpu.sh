@@ -4,52 +4,39 @@
 ################################################################################
 #
 # Usage:
-#   bash submit_dinov2_single_gpu.sh [MODE]
+#   bash submit_dinov2_single_gpu.sh [CONFIG_NAME]
 #
-# Modes:
-#   fast     - Fast training (dem_dinov2_fast)
-#   standard - Standard training (dem_dinov2)
+# Config names (from adapter_config.yaml):
+#   dem_dinov2      - Standard DINOv2 training (default)
+#   dem_dinov2_v2   - DINOv2 v2 variant
+#   base_dinov2     - Base DINOv2 without adaptation
 #
 ################################################################################
 
 # Create logs directory
 mkdir -p logs
 
-# Parse mode (default: fast)
-MODE="${1:-fast}"
+# Parse config name (default: dem_dinov2)
+CONFIG_NAME="${1:-dem_dinov2}"
 
-# Validate mode
-if [[ "$MODE" != "fast" && "$MODE" != "standard" ]]; then
-    echo "ERROR: Invalid mode '$MODE'. Use 'fast' or 'standard'"
-    exit 1
-fi
-
-# Set config name based on mode
-if [ "$MODE" = "fast" ]; then
-    CONFIG_NAME="dem_dinov2_fast"
-    BATCH_SIZE=64  # Increased from 32 (2x faster if memory allows)
-    EPOCHS=10
-    GRAD_ACCUM=1
-else
-    CONFIG_NAME="dem_dinov2"
-    BATCH_SIZE=200
-    EPOCHS=7
-    GRAD_ACCUM=1
-fi
+# Training parameters
+BATCH_SIZE=200
+EPOCHS=20
+GRAD_ACCUM=1
 
 # OPTIMIZATION: More workers for faster data loading
-NUM_WORKERS=12  # Increased from 16 (faster data loading)
+NUM_WORKERS=12
 # OPTIMIZATION: Reduce logging frequency (less I/O overhead)
-LOG_INTERVAL=100  # Log every 100 batches instead of 50
+LOG_INTERVAL=100
 
-echo "Submitting DINOv2 ${MODE} training (single GPU)..."
+echo "Submitting DINOv2 training (single GPU)..."
 echo "Config: ${CONFIG_NAME}"
 echo "Batch size: ${BATCH_SIZE}"
 
 # Submit job
 sbatch <<EOF
 #!/bin/bash
-#SBATCH --job-name=dinov2_${MODE}_1gpu
+#SBATCH --job-name=dinov2_${CONFIG_NAME}_1gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=14
 #SBATCH --gpus-per-node=1
@@ -57,8 +44,8 @@ sbatch <<EOF
 #SBATCH --qos=preemptible
 #SBATCH --account=rayyeh
 #SBATCH --time=47:55:00
-#SBATCH --output=logs/dinov2_${MODE}_1gpu_%j.out
-#SBATCH --error=logs/dinov2_${MODE}_1gpu_%j.err
+#SBATCH --output=logs/dinov2_${CONFIG_NAME}_1gpu_%j.out
+#SBATCH --error=logs/dinov2_${CONFIG_NAME}_1gpu_%j.err
 
 # Print job information
 echo "=========================================="
@@ -69,7 +56,6 @@ echo "Job Name: \$SLURM_JOB_NAME"
 echo "Node: \$SLURM_NODELIST"
 echo "GPUs: \$SLURM_GPUS_PER_NODE"
 echo "CPUs: \$SLURM_NTASKS"
-echo "Mode: ${MODE}"
 echo "Config: ${CONFIG_NAME}"
 echo "=========================================="
 
@@ -81,8 +67,8 @@ conda activate /home/rahman79/miniconda3/envs/local_scale
 nvidia-smi
 
 # Set paths (UPDATE THESE!)
-IMAGENET_PATH="/home/rahman79/Desktop/ray_ashiq/Projects/local-scale-equivariance/logs/datasets/imagenet"  # UPDATE THIS PATH
-OUTPUT_PATH="./logs/output/dinov2_${MODE}_1gpu_\${SLURM_JOB_ID}"
+IMAGENET_PATH="/home/rahman79/Desktop/ray_ashiq/Projects/local-scale-equivariance/logs/datasets/imagenet"
+OUTPUT_PATH="./logs/output/dinov2_${CONFIG_NAME}_1gpu_\${SLURM_JOB_ID}"
 
 # Check if ImageNet path exists
 if [ ! -d "\$IMAGENET_PATH" ]; then
@@ -133,7 +119,7 @@ python train_imagenet.py \\
     --opt adamw \\
     --weight-decay 0.05 \\
     --sched cosine \\
-    --warmup-epochs 1 \\
+    --warmup-epochs 2 \\
     --warmup-lr 1e-8 \\
     --min-lr 1e-8 \\
     --output "\$OUTPUT_PATH" \\
@@ -164,4 +150,3 @@ EOF
 echo "Job submitted!"
 echo "Monitor with: squeue -u $USER"
 echo "Check logs in: logs/"
-
