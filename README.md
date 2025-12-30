@@ -10,18 +10,6 @@
 |----------------|---------------|
 | <img src="https://github.com/ashiq24/local-scale-equivariance/blob/gh-pages/assets/bird_1_gscale.gif" width="450"/> | <img src="https://github.com/ashiq24/local-scale-equivariance/blob/gh-pages/assets/bird_1.gif" width="450"/> |
 
-
-## Abstract
-
-In computer vision, scale variation is a persistent challenge where objects of the same class can appear at different sizes due to intrinsic differences and extrinsic factors like camera distance. While prior work addresses global scale invariance, real-world images often experience **local scale changes** where only parts of the image are resized. Existing neural networks, including state-of-the-art vision transformers, are not inherently robust to such transformations.
-
-We propose **Deep Equilibrium Canonicalizer (DEC)**, a novel method that achieves local scale equivariance through:
-- **Monotone Scaling Group**: A mathematically tractable approximation to local scaling
-- **Deep Equilibrium Models (DEQs)**: Efficient canonicalization via fixed-point computation
-- **Latent Canonicalization**: Applied to feature space as well as the input images  
-
-Our method consistently improves both accuracy and scale consistency metrics across various architectures (ViT, Swin, BEiT, DINOv2, ResNet, DeiT) on synthetic and real-world datasets.
-
 ## 🔥 Key Contributions
 
 1. **First group-theoretic approach** to local scale equivariance with monotone scaling groups
@@ -48,6 +36,7 @@ Our method consistently improves both accuracy and scale consistency metrics acr
 - [License](#license)
 
 ## 🚀 Installation
+###  You can use it directly from Huggingface [LSE-DINO-v2](https://huggingface.co/ashiq24/lse-dinov2-base).
 
 ### Option 1: Conda Environment (Recommended)
 
