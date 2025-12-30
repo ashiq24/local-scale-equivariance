@@ -42,7 +42,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/local-scale-equivariance.git
+git clone https://github.com/ashiq24/local-scale-equivariance.git
 cd local-scale-equivariance
 
 # Create and activate the main environment
