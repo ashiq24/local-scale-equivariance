@@ -54,6 +54,12 @@ from timm.utils import ApexScaler, NativeScaler
 from torch.utils.data import random_split
 import random
 try:
+    from safetensors.torch import save_file as safe_save_file
+    has_safetensors = True
+except ImportError:
+    has_safetensors = False
+    _logger.warning("safetensors not available. Install with: pip install safetensors")
+try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as ApexDDP
     from apex.parallel import convert_syncbn_model
@@ -441,6 +447,53 @@ def _parse_args():
     # Cache the args as a text string to save them in the output dir later
     args_text = yaml.safe_dump(args.__dict__, default_flow_style=False)
     return args, args_text
+
+
+def save_safetensors_checkpoint(model, output_dir, filename='model.safetensors', metadata=None):
+    """
+    Save model state dict as SafeTensors format.
+    
+    Args:
+        model: Model (may be wrapped in DDP)
+        output_dir: Directory to save checkpoint
+        filename: Filename for checkpoint
+        metadata: Optional metadata dict to include
+    """
+    if not has_safetensors:
+        _logger.warning("safetensors not available, skipping SafeTensors checkpoint save")
+        return
+    
+    try:
+        # Unwrap DDP model if needed
+        if hasattr(model, 'module'):
+            model_to_save = model.module
+        else:
+            model_to_save = model
+        
+        # Get state dict
+        state_dict = model_to_save.state_dict()
+        
+        # Remove 'module.' prefix if present (shouldn't be after unwrapping, but just in case)
+        clean_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith('module.'):
+                clean_state_dict[k[7:]] = v
+            else:
+                clean_state_dict[k] = v
+        
+        # Prepare metadata
+        if metadata is None:
+            metadata = {"format": "pt"}
+        else:
+            metadata = {**metadata, "format": "pt"}
+        
+        # Save as SafeTensors
+        safetensors_path = os.path.join(output_dir, filename)
+        safe_save_file(clean_state_dict, safetensors_path, metadata=metadata)
+        _logger.info(f"Saved SafeTensors checkpoint: {safetensors_path}")
+        
+    except Exception as e:
+        _logger.warning(f"Failed to save SafeTensors checkpoint: {e}")
 
 
 def main():
@@ -1057,7 +1110,7 @@ def main():
         
         
         for epoch in range(start_epoch, num_epochs):
-                
+            
             #=================== added for our approach =========================
             # unfreeze backbone after some epochs
             if (adapter_config.freeze_backbone_epochs > 0 and epoch >= adapter_config.freeze_backbone_epochs) or \
@@ -1164,6 +1217,32 @@ def main():
             if saver is not None:
                 # save proper checkpoint with eval metric
                 best_metric, best_epoch = saver.save_checkpoint(epoch, metric=latest_metric)
+                
+                # Also save SafeTensors checkpoint for easier HuggingFace conversion
+                if utils.is_primary(args) and output_dir:
+                    # Save SafeTensors version of best model if this is the best checkpoint
+                    if best_metric == latest_metric and best_epoch == epoch:
+                        save_safetensors_checkpoint(
+                            model,
+                            output_dir,
+                            filename='model_best.safetensors',
+                            metadata={
+                                "epoch": str(epoch),
+                                "metric": str(latest_metric),
+                                "metric_name": eval_metric,
+                            }
+                        )
+                    # Save SafeTensors for latest checkpoint
+                    save_safetensors_checkpoint(
+                        model,
+                        output_dir,
+                        filename=f'checkpoint-{epoch}.safetensors',
+                        metadata={
+                            "epoch": str(epoch),
+                            "metric": str(latest_metric),
+                            "metric_name": eval_metric,
+                        }
+                    )
 
             if lr_scheduler is not None:
                 # step LR for next epoch
@@ -1183,10 +1262,20 @@ def main():
     if best_metric is not None:
         # log best metric as tracked by checkpoint saver
         _logger.info('*** Best metric: {0} (epoch {1})'.format(best_metric, best_epoch))
-        # checkpint_path = os.path.join(output_dir, f'checkpoint_{best_epoch}.pth.tar')
-        # checkpoint = torch.load("model_best.pth.tar", map_location="cuda" if torch.cuda.is_available() else "cpu")
-        # model.load_state_dict(checkpoint['state_dict'])
         
+        # Save final SafeTensors checkpoint for best model
+        if utils.is_primary(args) and output_dir:
+            save_safetensors_checkpoint(
+                model,
+                output_dir,
+                filename='model_best.safetensors',
+                metadata={
+                    "epoch": str(best_epoch),
+                    "metric": str(best_metric),
+                    "metric_name": eval_metric,
+                    "final": "true",
+                }
+            )
 
     if utils.is_primary(args):
         # for parsable results display, dump top-10 summaries to avoid excess console spam
@@ -1564,8 +1653,8 @@ def validate(
                 input = input.to(device=device, dtype=model_dtype)
                 target = target.to(device=device)
             
-            # Create warped_input for equivariance loss computation
-            # When prefetcher is True, input is already on device
+            # Create warped_input for equivariance loss computation.
+            # When prefetcher is True, input is already on device so we can use it directly.
             warped_input, _, _, _ = random_data_augmentation(input, target, adapter_config)
             
             if args.channels_last:

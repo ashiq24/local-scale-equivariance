@@ -431,3 +431,56 @@ dem_dinov2_v3: &DEM_DINOV2_V3
     outer_lr: 0.00002
     dem_weight_decay: 0.0000001
     dem_lr: 0.00005
+
+
+#########
+# DINOV3
+#########
+base_dinov3: &BASE_DINOV3
+    <<: *BASE
+    model_name: 'dinov3'
+    outer_lr:  0.0000001
+
+dem_dinov3: &DEM_DINOV3
+    <<: *BASE_DINOV3
+    model_name: 'dinov3'
+
+    do_adaptation: !!bool True
+    do_data_augmentation: !!bool True
+
+    # Start from DINOv2 v3 DEM hyperparams as a reasonable default
+    outer_lr: 0.000008
+    dem_weight_decay: 0.0000001
+    freeze_backbone_epochs: -1
+    dem_lr: 0.00001
+    
+    # equivar weight
+    equivariance_loss: !!bool True
+    equivariance_loss_weight: 0.01
+    eqloss_type: "MSE"
+    
+    # SPEED: Compute equivariance loss every 5 batches (like DINOv2 DEM v3)
+    equivariance_loss_freq: 5
+
+    # diff weights - keep off by default (same as DINOv2)
+    unique_optima_loss: !!bool False
+    phi_diff_loss_weight: 0.1
+    phi_prior_loss_weight: 0.0
+    phi_diff_increment_per_epoch: 0.1
+    phi_diff_loss_weight_max: 1.0
+
+    # architecture: mirror DINOv2 v3 DEM resolution for ViT-B/16
+    num_phi_layers: 3
+    adapter_coarse_resolution: [16, 8, 8]
+    adapter_num_layers: 2
+    adapter_channels: [3, 64, 128]
+    adapter_filter_size: [5,3]
+    adapter_pool_rate: [4,2]
+
+    # layer ids: reuse the same augmentation schedule as DINOv2 v3
+    # -1 = input image, 0-11 = transformer blocks (ViT-B/16 has 12 blocks)
+    augment_layer_id: [-1, 4, 8]
+    # -100 = never undo (keep deformed throughout)
+    unaugment_layer_id: [-100]
+
+    finetune_mode: 'complete'

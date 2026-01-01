@@ -1,0 +1,52 @@
+{
+  "adapter_channels": [
+    3,
+    64,
+    128
+  ],
+  "adapter_coarse_resolution": [
+    16,
+    8,
+    8
+  ],
+  "adapter_filter_size": [
+    5,
+    3
+  ],
+  "adapter_num_layers": 2,
+  "adapter_pool_rate": [
+    4,
+    2
+  ],
+  "augment_layer_id": [
+    -1,
+    4,
+    8
+  ],
+  "auto_map": {
+    "AutoConfig": "configuration_lse_dinov2.LSEDinoV2Config"
+  },
+  "deform_resolution": null,
+  "dem_image_scale": true,
+  "depth": 12,
+  "do_adaptation": true,
+  "embed_dim": 768,
+  "image_size": 224,
+  "img_size": 224,
+  "in_chans": 3,
+  "inner_epochs": 5,
+  "interpolation_mode": "bilinear",
+  "mlp_ratio": 4.0,
+  "model_type": "lse-dinov2",
+  "num_channels": 3,
+  "num_classes": 1000,
+  "num_heads": 12,
+  "num_phi_layers": 3,
+  "num_prefix_tokens": 5,
+  "num_register_tokens": 4,
+  "patch_size": 14,
+  "transformers_version": "4.44.2",
+  "unaugment_layer_id": [
+    -100
+  ]
+}

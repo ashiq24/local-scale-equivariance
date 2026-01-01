@@ -189,3 +189,4 @@ plan.txt
 memory.md
 logs/*
 test/*
+huggingface_release/*
