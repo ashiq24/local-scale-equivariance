@@ -448,11 +448,11 @@ dem_dinov3: &DEM_DINOV3
     do_adaptation: !!bool True
     do_data_augmentation: !!bool True
 
-    # Start from DINOv2 v3 DEM hyperparams as a reasonable default
-    outer_lr: 0.000008
+    # LR scaled for batch 200: base 1e-4 * (200/1024) ≈ 2e-5
+    outer_lr: 0.00002
     dem_weight_decay: 0.0000001
     freeze_backbone_epochs: -1
-    dem_lr: 0.00001
+    dem_lr: 0.00005
     
     # equivar weight
     equivariance_loss: !!bool True
@@ -471,11 +471,11 @@ dem_dinov3: &DEM_DINOV3
 
     # architecture: mirror DINOv2 v3 DEM resolution for ViT-B/16
     num_phi_layers: 3
-    adapter_coarse_resolution: [16, 8, 8]
+    adapter_coarse_resolution: [10, 8, 8]
     adapter_num_layers: 2
     adapter_channels: [3, 64, 128]
-    adapter_filter_size: [5,3]
-    adapter_pool_rate: [4,2]
+    adapter_filter_size: [5,5]
+    adapter_pool_rate: [2,4]
 
     # layer ids: reuse the same augmentation schedule as DINOv2 v3
     # -1 = input image, 0-11 = transformer blocks (ViT-B/16 has 12 blocks)

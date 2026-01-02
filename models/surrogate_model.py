@@ -20,9 +20,9 @@ class DEMResidualBlock(nn.Module):
         
         # First convolution (dilation=1)
         self.conv1 = nn.Conv2d(channels_in, channels_out, filter_size, 
-                               padding=filter_size // 2, 
+                               padding=filter_size -1, 
                                padding_mode='reflect', 
-                               dilation=1)
+                               dilation=2)
         
         self.norm1 = nn.InstanceNorm2d(channels_out, affine=True)
         

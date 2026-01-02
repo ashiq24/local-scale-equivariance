@@ -141,13 +141,18 @@ python train_imagenet.py \\
     --sched cosine \\
     --warmup-epochs 2 \\
     --warmup-lr 1e-8 \\
-    --min-lr 1e-8 \\
+    --min-lr 1e-6 \\
     --output "\$OUTPUT_PATH" \\
     --log-wandb \\
     --pin-mem \\
     --grad-checkpointing \\
     --clip-grad 1.0 \\
     --smoothing 0.1 \\
+    --mixup 0.8 \\
+    --cutmix 1.0 \\
+    --aa rand-m9-mstd0.5-inc1 \\
+    --reprob 0.25 \\
+    --drop-path 0.1 \\
     --log-interval ${LOG_INTERVAL} \\
     --torchcompile inductor \\
     --torchcompile-mode reduce-overhead

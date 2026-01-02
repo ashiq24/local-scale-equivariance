@@ -496,6 +496,69 @@ def save_safetensors_checkpoint(model, output_dir, filename='model.safetensors',
         _logger.warning(f"Failed to save SafeTensors checkpoint: {e}")
 
 
+def get_param_groups(model, weight_decay=0.05, lr=None):
+    """
+    Separate model parameters into decay and no_decay groups for AdamW.
+    
+    Following best practices for ViT fine-tuning:
+    - no_decay: bias parameters, LayerNorm/normalization parameters, 1D parameters
+    - decay: all other parameters (weights)
+    
+    Args:
+        model: The model to get parameters from
+        weight_decay: Weight decay value for decay group
+        lr: Optional learning rate (if None, uses optimizer default)
+    
+    Returns:
+        List of parameter group dicts for optimizer
+    """
+    decay = []
+    no_decay = []
+    
+    # Keywords that indicate normalization layers (should not have weight decay)
+    norm_keywords = ('norm', 'ln', 'layernorm', 'bn', 'batchnorm', 'groupnorm')
+    
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        
+        # Check conditions for no weight decay
+        skip_decay = False
+        
+        # 1. 1D parameters (biases, LayerNorm scale/shift, etc.)
+        if param.ndim == 1:
+            skip_decay = True
+        
+        # 2. Explicit bias parameters
+        elif name.endswith('.bias'):
+            skip_decay = True
+        
+        # 3. Normalization layer parameters
+        elif any(nd in name.lower() for nd in norm_keywords):
+            skip_decay = True
+        
+        if skip_decay:
+            no_decay.append(param)
+        else:
+            decay.append(param)
+    
+    # Build parameter groups
+    param_groups = [
+        {'params': decay, 'weight_decay': weight_decay},
+        {'params': no_decay, 'weight_decay': 0.0},
+    ]
+    
+    # Add learning rate if specified
+    if lr is not None:
+        for group in param_groups:
+            group['lr'] = lr
+    
+    _logger.info(f"Parameter groups: {len(decay)} params with weight_decay={weight_decay}, "
+                 f"{len(no_decay)} params with weight_decay=0.0")
+    
+    return param_groups
+
+
 def main():
     utils.setup_default_logging()
     args, args_text = _parse_args()
@@ -683,18 +746,26 @@ def main():
                 f'and effective global batch size ({global_batch_size}) with {args.lr_base_scale} scaling.')
     
     if adapter_config.do_adaptation:
-         optimizer = create_optimizer_v2(
-            [{'params': model.parameters(), 'lr':args.lr, 'weight_decay': args.weight_decay},
-             {'params': DEM.parameters(), 'lr': adapter_config.dem_lr, 'weight_decay': adapter_config.dem_weight_decay},],
+        # Get parameter groups with proper weight decay exclusion for bias/norm
+        model_param_groups = get_param_groups(model, weight_decay=args.weight_decay, lr=args.lr)
+        dem_param_groups = get_param_groups(DEM, weight_decay=adapter_config.dem_weight_decay, lr=adapter_config.dem_lr)
+        
+        # Combine all parameter groups
+        all_param_groups = model_param_groups + dem_param_groups
+        
+        optimizer = create_optimizer_v2(
+            all_param_groups,
             **optimizer_kwargs(cfg=args),
             **args.opt_kwargs,
         )
     else:
+        # Get parameter groups with proper weight decay exclusion for bias/norm
+        model_param_groups = get_param_groups(model, weight_decay=args.weight_decay, lr=args.lr)
+        
         optimizer = create_optimizer_v2(
-            model,
+            model_param_groups,
             **optimizer_kwargs(cfg=args),
-            **args.opt_kwargs,            
-            
+            **args.opt_kwargs,
         )
     
     
