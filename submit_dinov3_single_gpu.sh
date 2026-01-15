@@ -17,7 +17,7 @@ mkdir -p logs
 CONFIG_NAME="${1:?Please provide CONFIG_NAME (entry from adapter_config.yaml), e.g. dem_dinov2_v3 or a dinov3 config}"
 
 # Training parameters
-BATCH_SIZE=200
+BATCH_SIZE=180
 EPOCHS=20
 GRAD_ACCUM=1
 
@@ -139,9 +139,9 @@ python train_imagenet.py \\
     --opt adamw \\
     --weight-decay 0.05 \\
     --sched cosine \\
-    --warmup-epochs 2 \\
+    --warmup-epochs 1 \\
     --warmup-lr 1e-8 \\
-    --min-lr 1e-6 \\
+    --min-lr 1e-5 \\
     --output "\$OUTPUT_PATH" \\
     --log-wandb \\
     --pin-mem \\

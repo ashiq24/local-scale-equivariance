@@ -429,7 +429,8 @@ group.add_argument('--multi_scale_train_split', metavar='NAME', default=None,
 group.add_argument('--multi_scale_val_split', metavar='NAME', default=None,
                    help='dataset validation split (default: validation)')
 group.add_argument("--multi_scale_class_map", default=None, type=str, help="Path to the multi-scale class map")
-
+group.add_argument("--debug-batches", type=int, default=None, metavar='N',
+                   help='Limit training to N batches per epoch for debugging (default: None, train full epoch)')
 
 
 def _parse_args():
@@ -651,7 +652,11 @@ def main():
     args.wandb_project = adapter_config.wandb_project
     args.lr = adapter_config.outer_lr
     
-    
+    # callibrating number of samples for training and validation
+    if hasattr(adapter_config, 'train_num_samples') and adapter_config.train_num_samples:
+        args.train_num_samples = adapter_config.train_num_samples
+    if hasattr(adapter_config, 'val_num_samples') and adapter_config.val_num_samples:
+        args.val_num_samples = adapter_config.val_num_samples
     
     
     if adapter_config.do_adaptation:
@@ -665,6 +670,7 @@ def main():
     # Apply adaptation (either canonicalization or DEM-based)
     if adapter_config.do_cannonicalization:
         model = convert_model(model, adapter_config, local_scale_params, DEM)
+    
         
     
     if args.head_init_scale is not None:
@@ -1129,9 +1135,25 @@ def main():
 
     # setup learning rate schedule and starting epoch
     updates_per_epoch = (len(loader_train) + args.grad_accum_steps - 1) // args.grad_accum_steps
+    scheduler_kwargs_dict = scheduler_kwargs(args, decreasing_metric=decreasing_metric)
+    
+    # Verify min_lr is being passed to scheduler
+    if utils.is_primary(args):
+        _logger.info(f'Learning rate scheduler configuration:')
+        _logger.info(f'  Scheduler type: {args.sched}')
+        _logger.info(f'  Initial LR: {args.lr}')
+        _logger.info(f'  Warmup LR: {args.warmup_lr}')
+        _logger.info(f'  Min LR (from args): {args.min_lr}')
+        if 'min_lr' in scheduler_kwargs_dict:
+            _logger.info(f'  ✓ min_lr={scheduler_kwargs_dict["min_lr"]} is being passed to scheduler')
+        else:
+            _logger.warning(f'  ✗ min_lr is NOT in scheduler_kwargs!')
+            _logger.warning(f'  Available scheduler kwargs: {list(scheduler_kwargs_dict.keys())}')
+            _logger.warning(f'  This may indicate min_lr is not being used by the scheduler.')
+    
     lr_scheduler, num_epochs = create_scheduler_v2(
         optimizer,
-        **scheduler_kwargs(args, decreasing_metric=decreasing_metric),
+        **scheduler_kwargs_dict,
         updates_per_epoch=updates_per_epoch,
     )
     start_epoch = 0
@@ -1403,9 +1425,20 @@ def train_one_epoch(
     data_start_time = update_start_time = time.time()
     optimizer.zero_grad()
     update_sample_count = 0
+    
+    # Debug mode: limit number of batches per epoch
+    debug_batches = getattr(args, 'debug_batches', None)
+    if debug_batches is not None:
+        if utils.is_primary(args):
+            _logger.info(f'DEBUG MODE: Limiting training to {debug_batches} batches per epoch')
+    
     for batch_idx, (input, target) in enumerate(loader):
-        # if batch_idx > 10:
-        #     break # debug mode
+        # Debug mode: break early after specified number of batches
+        if debug_batches is not None and batch_idx >= debug_batches:
+            if utils.is_primary(args):
+                _logger.info(f'DEBUG MODE: Reached {debug_batches} batches, stopping epoch early')
+            break
+        
         last_batch = batch_idx == last_batch_idx
         need_update = last_batch or (batch_idx + 1) % accum_steps == 0
         update_idx = batch_idx // accum_steps
