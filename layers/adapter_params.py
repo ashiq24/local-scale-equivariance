@@ -32,15 +32,17 @@ class PerlayerAdapterParams:
                     1,
                     adapter_coarse_resolution[i],
                     adapter_coarse_resolution[i] - shape_fix,
-                    requires_grad=True) for i in range(
-                self.num_layers)]
+                    requires_grad=False)
+                for i in range(
+                self.num_layers)  ]
         self.param_y_list = [
                 normalization_factor[i] *
                 torch.ones(
                     1,
                     adapter_coarse_resolution[i],
                     adapter_coarse_resolution[i] - shape_fix,
-                    requires_grad=True) for i in range(
+                    requires_grad=False)
+                for i in range(
                 self.num_layers)]
         
 

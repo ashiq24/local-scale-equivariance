@@ -28,8 +28,8 @@ def custom_forward(self, x):
     batch_size = x.size(0)
     
     # Clone and expand phi parameters to batch size
-    phi_x_batch = [phi_x.clone().repeat(batch_size, 1, 1).requires_grad_(True).to(x.device) for phi_x in phi_x_list]
-    phi_y_batch = [phi_y.clone().repeat(batch_size, 1, 1).requires_grad_(True).to(x.device) for phi_y in phi_y_list]
+    phi_x_batch = [phi_x.detach().to(x.device).repeat(batch_size, 1, 1).requires_grad_(True) for phi_x in phi_x_list]
+    phi_y_batch = [phi_y.detach().to(x.device).repeat(batch_size, 1, 1).requires_grad_(True) for phi_y in phi_y_list]
     
     # DEM: Find equilibrium phi parameters
     phi_x_batch, phi_y_batch = self.DEM._DEQ(x, phi_x_batch, phi_y_batch)
@@ -194,4 +194,3 @@ def convert_dinov2_model(model, adaptation_config, local_scale_params, DEM_model
             adaptation_config.interpolation_mode
         )
     return model
-

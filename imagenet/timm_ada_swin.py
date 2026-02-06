@@ -16,8 +16,8 @@ def custom_forward(self, x):
     phi_x_list = self.local_scale_params.param_x_list
     phi_y_list = self.local_scale_params.param_y_list
     batch_size = x.size(0)
-    phi_x_batch = [phi_x.clone().repeat(batch_size, 1, 1).requires_grad_(True).to(x.device) for phi_x in phi_x_list]
-    phi_y_batch = [phi_y.clone().repeat(batch_size, 1, 1).requires_grad_(True).to(x.device) for phi_y in phi_y_list]
+    phi_x_batch = [phi_x.detach().to(x.device).repeat(batch_size, 1, 1).requires_grad_(True) for phi_x in phi_x_list]
+    phi_y_batch = [phi_y.detach().to(x.device).repeat(batch_size, 1, 1).requires_grad_(True) for phi_y in phi_y_list]
     phi_x_batch, phi_y_batch = self.DEM._DEQ(x, phi_x_batch, phi_y_batch)
     # store local scaling parameters in the model temporalily
     self.tem_x_batch = phi_x_batch

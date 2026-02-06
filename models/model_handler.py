@@ -1,5 +1,5 @@
 from .surrogate_model import Adapter, DEMAdapter
-from .ada_swin import AdaSwinForImageClassification, AdaSwinForDensePrediction
+# from .ada_swin import AdaSwinForImageClassification, AdaSwinForDensePrediction
 from .ada_resnet import AdaResNetForImageClassification, AdaResNetForDensePrediction
 from .ada_vit import AdaViTForImageClassification, AdaViTForDensePrediction
 from .ada_dino import AdaDinov2ForImageClassification, AdaDinov2ForDensePrediction
@@ -9,7 +9,7 @@ from .canonicalizer_wrapper import CanonicalizeWrapper
 
 def get_model(params):
     model_mapping = {
-        'swin_transformer': (AdaSwinForImageClassification, AdaSwinForDensePrediction),
+        # 'swin_transformer': (AdaSwinForImageClassification, AdaSwinForDensePrediction),
         'resnet': (AdaResNetForImageClassification, AdaResNetForDensePrediction),
         'vit': (AdaViTForImageClassification, AdaViTForDensePrediction),
         'dino': (AdaDinov2ForImageClassification, AdaDinov2ForDensePrediction),

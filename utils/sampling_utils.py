@@ -2,11 +2,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-import torchvision.transforms as T
 from torch.nn.functional import grid_sample as GridSample
 
 
-def apply_smoothing(grid, kernel_size=5):
+def _gaussian_kernel1d(kernel_size, sigma, device, dtype):
+    radius = kernel_size // 2
+    x = torch.arange(-radius, radius + 1, device=device, dtype=dtype)
+    kernel = torch.exp(-0.5 * (x / sigma) ** 2)
+    kernel = kernel / kernel.sum()
+    return kernel
+
+
+def apply_smoothing(grid, kernel_size=5, sigma=0.2):
     """
     Apply Gaussian smoothing to parameter grids to ensure smooth deformations.
     
@@ -22,8 +29,19 @@ def apply_smoothing(grid, kernel_size=5):
     Returns:
         torch.Tensor: Smoothed grid of same shape as input (batch, h, w)
     """
-    smoothing_kernel = T.GaussianBlur(kernel_size=(kernel_size, kernel_size), sigma=(0.2, 0.2))
-    return smoothing_kernel(grid.unsqueeze(1)).squeeze(1)
+    if kernel_size <= 1:
+        return grid
+
+    grid_4d = grid.unsqueeze(1)
+    kernel_1d = _gaussian_kernel1d(kernel_size, sigma, device=grid.device, dtype=grid.dtype)
+    radius = kernel_size // 2
+
+    kernel_h = kernel_1d.view(1, 1, 1, -1)
+    kernel_v = kernel_1d.view(1, 1, -1, 1)
+
+    smoothed = F.conv2d(grid_4d, kernel_h, padding=(0, radius))
+    smoothed = F.conv2d(smoothed, kernel_v, padding=(radius, 0))
+    return smoothed.squeeze(1)
 
 
 def normalize_cumsum(grid):

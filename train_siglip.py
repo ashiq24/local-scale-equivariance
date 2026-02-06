@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""" ImageNet Training Script
+""" SigLIP ImageNet Training Script
 
 This is intended to be a lean and easily modifiable ImageNet training script that reproduces ImageNet
 training results with some of the latest networks and training techniques. It favours canonical PyTorch
@@ -23,7 +23,7 @@ import importlib
 import json
 import logging
 from YParams import YParams
-from models.model_handler import get_dem_model
+from models.surrogate_model import DEMAdapter
 from layers.adapter_params import PerlayerAdapterParams
 from train.training_handler import *
 import time
@@ -56,17 +56,19 @@ from timm.utils import ApexScaler, NativeScaler
 from torch.utils.data import random_split
 import random
 try:
+    import transformers as hf_transformers
     from transformers import AutoModel, AutoProcessor, AutoTokenizer
     has_transformers = True
 except ImportError:
     has_transformers = False
+    hf_transformers = None
 
 try:
     from safetensors.torch import save_file as safe_save_file
     has_safetensors = True
 except ImportError:
     has_safetensors = False
-    _logger.warning("safetensors not available. Install with: pip install safetensors")
+    logging.getLogger('train').warning("safetensors not available. Install with: pip install safetensors")
 try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as ApexDDP
@@ -100,7 +102,7 @@ parser.add_argument('-c', '--config', default='', type=str, metavar='FILE',
                     help='YAML config file specifying default arguments')
 
 
-parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
+parser = argparse.ArgumentParser(description='PyTorch SigLIP ImageNet Training')
 
 # Dataset parameters
 group = parser.add_argument_group('Dataset parameters')
@@ -431,6 +433,7 @@ group.add_argument("--our_config_file", default= None, type=str, help="Config fi
 group.add_argument("--our_config_name", default= None, type=str, help="Config name for our approach")
 group.add_argument("--dem_lr", default=None, type=float, help="Learning rate for the DEM")
 group.add_argument("--do_pretrain_eval", action='store_true', default=False ,help="Whether to evaluate the model before training")
+group.add_argument("--eval-only", action='store_true', default=False, help="Run evaluation only and exit (implies --do_pretrain_eval)")
 group.add_argument("--per_scale_eval_freq", default=10, type=int, help="Frequency of evaluation for each scale")
 # data
 group.add_argument("--multi_scale_datapath", default=None, type=str, help="Path to the multi-scale dataset")
@@ -441,6 +444,25 @@ group.add_argument('--multi_scale_val_split', metavar='NAME', default=None,
 group.add_argument("--multi_scale_class_map", default=None, type=str, help="Path to the multi-scale class map")
 group.add_argument("--debug-batches", type=int, default=None, metavar='N',
                    help='Limit training to N batches per epoch for debugging (default: None, train full epoch)')
+group.add_argument("--siglip-model-id", default="google/siglip2-base-patch16-224", type=str,
+                   help="Hugging Face model id for SigLIP/SigLIP-2 model.")
+group.add_argument("--siglip-processor-id", default=None, type=str,
+                   help="Optional processor id (defaults to --siglip-model-id).")
+group.add_argument("--siglip-tokenizer-id", default=None, type=str,
+                   help="Optional tokenizer id (defaults to processor tokenizer).")
+group.add_argument("--siglip-max-length", default=64, type=int,
+                   help="Text max_length for SigLIP tokenization. Use 64 for SigLIP-2 style training/eval.")
+group.add_argument("--siglip-prompt-agg", default="mean", choices=["mean", "max"],
+                   help="Aggregation mode for prompt ensemble during zero-shot evaluation.")
+group.add_argument("--siglip-eval-prompt-set", default="config", choices=["config", "openai", "openai_simple"],
+                   help="Prompt template source for SigLIP zero-shot eval.")
+group.add_argument("--siglip-freeze-text", dest="siglip_freeze_text", action='store_true',
+                   help="Freeze text tower parameters for vision-only tuning.")
+group.add_argument("--no-siglip-freeze-text", dest="siglip_freeze_text", action='store_false',
+                   help="Do not freeze text tower parameters.")
+group.add_argument("--siglip-train-logit-scale", action='store_true', default=False,
+                   help="If set, keeps logit_scale/logit_bias trainable. Default keeps them frozen.")
+parser.set_defaults(siglip_freeze_text=True)
 
 
 def _parse_args():
@@ -507,7 +529,7 @@ def save_safetensors_checkpoint(model, output_dir, filename='model.safetensors',
         _logger.warning(f"Failed to save SafeTensors checkpoint: {e}")
 
 
-def get_param_groups(model, weight_decay=0.05, lr=None):
+def get_param_groups(model, weight_decay=0.05, lr=None, exclude_param_ids=None):
     """
     Separate model parameters into decay and no_decay groups for AdamW.
     
@@ -529,8 +551,12 @@ def get_param_groups(model, weight_decay=0.05, lr=None):
     # Keywords that indicate normalization layers (should not have weight decay)
     norm_keywords = ('norm', 'ln', 'layernorm', 'bn', 'batchnorm', 'groupnorm')
     
+    exclude_param_ids = set() if exclude_param_ids is None else set(exclude_param_ids)
+
     for name, param in model.named_parameters():
         if not param.requires_grad:
+            continue
+        if id(param) in exclude_param_ids:
             continue
         
         # Check conditions for no weight decay
@@ -570,9 +596,238 @@ def get_param_groups(model, weight_decay=0.05, lr=None):
     return param_groups
 
 
+def _unwrap_model(model):
+    return model.module if hasattr(model, "module") else model
+
+
+def _is_siglip_mode(adapter_config):
+    model_name = getattr(adapter_config, "model_name", "")
+    task_name = getattr(adapter_config, "task", "")
+    return model_name == "siglip2" or task_name == "siglip2_ssl"
+
+
+def _get_siglip_image_config(processor, fallback_size=224):
+    image_processor = getattr(processor, "image_processor", None)
+    if image_processor is None:
+        return fallback_size, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5], "bicubic"
+
+    size_cfg = getattr(image_processor, "size", None)
+    image_size = fallback_size
+    if isinstance(size_cfg, dict):
+        if "height" in size_cfg:
+            image_size = int(size_cfg["height"])
+        elif "shortest_edge" in size_cfg:
+            image_size = int(size_cfg["shortest_edge"])
+    elif isinstance(size_cfg, int):
+        image_size = int(size_cfg)
+
+    mean = list(getattr(image_processor, "image_mean", [0.5, 0.5, 0.5]))
+    std = list(getattr(image_processor, "image_std", [0.5, 0.5, 0.5]))
+    return image_size, mean, std, "bicubic"
+
+
+def load_siglip_components(args):
+    if not has_transformers:
+        raise RuntimeError("transformers is required for SigLIP training but is not installed.")
+
+    trust_remote_code = bool(getattr(args, "dataset_trust_remote_code", False))
+    processor_id = args.siglip_processor_id or args.siglip_model_id
+    tokenizer_id = args.siglip_tokenizer_id or processor_id
+
+    processor = AutoProcessor.from_pretrained(processor_id, trust_remote_code=trust_remote_code)
+    try:
+        model = AutoModel.from_pretrained(args.siglip_model_id, trust_remote_code=trust_remote_code)
+    except Exception as e:
+        version = hf_transformers.__version__ if hf_transformers is not None else "unknown"
+        raise RuntimeError(
+            f"Failed to load model `{args.siglip_model_id}`. "
+            f"If this is a SigLIP-2 checkpoint, your `transformers` version may be too old. "
+            f"Current transformers={version}. Original error: {e}"
+        ) from e
+
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_id, trust_remote_code=trust_remote_code)
+
+    if not hasattr(model, "get_image_features") or not hasattr(model, "get_text_features"):
+        raise ValueError(
+            f"Model {args.siglip_model_id} does not expose `get_image_features`/`get_text_features`; "
+            "please use a SigLIP model."
+        )
+
+    model_type = getattr(getattr(model, "config", None), "model_type", "unknown")
+    if model_type not in ("siglip", "siglip2") and utils.is_primary(args):
+        _logger.warning(f"Loaded model type `{model_type}`. Expected `siglip` or `siglip2`.")
+
+    return model, processor, tokenizer
+
+
+def freeze_siglip_text_tower(model, freeze_text=True, train_logit_scale=False):
+    if not freeze_text:
+        return
+    if hasattr(model, "text_model"):
+        for p in model.text_model.parameters():
+            p.requires_grad = False
+        model.text_model.eval()
+    for name in ("logit_scale", "logit_bias"):
+        if hasattr(model, name):
+            getattr(model, name).requires_grad = bool(train_logit_scale)
+
+
+def resolve_class_names(dataset, num_classes):
+    if num_classes == 1000:
+        return list(ResNet50_Weights.IMAGENET1K_V2.meta["categories"])
+
+    idx_to_name = {}
+    sources = [dataset, getattr(dataset, "reader", None), getattr(dataset, "parser", None)]
+    for source in sources:
+        if source is None:
+            continue
+        class_to_idx = getattr(source, "class_to_idx", None)
+        if class_to_idx:
+            for name, idx in class_to_idx.items():
+                idx_to_name[int(idx)] = str(name)
+            break
+
+    if not idx_to_name:
+        return [f"class {i}" for i in range(num_classes)]
+
+    class_names = []
+    for i in range(num_classes):
+        class_names.append(idx_to_name.get(i, f"class {i}"))
+    return class_names
+
+
+def get_prompt_templates(adapter_config, mode="train"):
+    key = "siglip_train_prompt_templates" if mode == "train" else "siglip_eval_prompt_templates"
+    templates = getattr(adapter_config, key, None)
+    if templates is not None:
+        return list(templates)
+
+    if mode == "train":
+        return [
+            "an image of {}",
+            "a photo of {}",
+            "a picture of {}",
+        ]
+    return [
+        "an image of {}",
+        "a photo of {}",
+        "a close-up photo of {}",
+        "a bright photo of {}",
+        "a dark photo of {}",
+        "a clean photo of {}",
+        "a low resolution photo of {}",
+        "a detailed image of {}",
+    ]
+
+
+def get_openai_imagenet_templates(simple=False):
+    from openai_imnet_templates import OPENAI_IMAGENET_TEMPLATES, SIMPLE_IMAGENET_TEMPLATES
+    templates = SIMPLE_IMAGENET_TEMPLATES if simple else OPENAI_IMAGENET_TEMPLATES
+    return [fn("{}") for fn in templates]
+
+
+def build_batch_text_prompts(target, class_names, templates):
+    labels = target.detach().cpu().tolist()
+    prompts = []
+    for idx in labels:
+        cls_name = class_names[int(idx)]
+        template = random.choice(templates)
+        prompts.append(template.format(cls_name))
+    return prompts
+
+
+def tokenize_prompts(tokenizer, prompts, max_length, device):
+    encoded = tokenizer(
+        prompts,
+        padding="max_length",
+        max_length=max_length,
+        truncation=True,
+        return_tensors="pt",
+    )
+    attention_mask = encoded.get("attention_mask", None)
+    if attention_mask is None:
+        attention_mask = torch.ones_like(encoded["input_ids"])
+    return {
+        "input_ids": encoded["input_ids"].to(device),
+        "attention_mask": attention_mask.to(device),
+    }
+
+
+def build_zeroshot_text_bank(model, tokenizer, class_names, prompt_templates, max_length, device, batch_size=512):
+    base_model = _unwrap_model(model)
+    text_inputs = []
+    for class_name in class_names:
+        for template in prompt_templates:
+            text_inputs.append(template.format(class_name))
+
+    all_features = []
+    with torch.no_grad():
+        for i in range(0, len(text_inputs), batch_size):
+            prompts = text_inputs[i:i + batch_size]
+            tokenized = tokenize_prompts(tokenizer, prompts, max_length=max_length, device=device)
+            text_features = base_model.get_text_features(
+                input_ids=tokenized["input_ids"],
+                attention_mask=tokenized["attention_mask"],
+            )
+            text_features = F.normalize(text_features, dim=-1)
+            all_features.append(text_features)
+
+    text_features = torch.cat(all_features, dim=0)
+    num_classes = len(class_names)
+    num_templates = len(prompt_templates)
+    return text_features.view(num_classes, num_templates, -1)
+
+
+def compute_siglip_loss(outputs):
+    """
+    Compute the SigLIP (Sigmoid Loss for Language-Image Pre-training) loss.
+
+    The SigLIP loss operates on pairs of text and image embeddings, using a sigmoid-based
+    formulation instead of the traditional softmax. For a batch of N text-image pairs:
+
+    Mathematical Formula:
+        For logits matrix Z (where Z_ij represents similarity between text i and image j):
+        
+        Loss = -mean_i( sum_j( log(σ(m_ij * Z_ij)) ) )
+        
+        where:
+        - σ(x) = sigmoid(x) = 1 / (1 + exp(-x))
+        - m_ij = -1 if i ≠ j (negative pairs)
+        - m_ij = +1 if i = j (positive pairs, diagonal elements)
+        - The matrix m = -1 + 2*I, where I is the identity matrix
+
+        This encourages positive pairs (diagonal) to have high similarity scores and
+        negative pairs (off-diagonal) to have low similarity scores.
+
+    Args:
+        outputs: Model outputs containing either a 'loss' attribute or 'logits_per_text'.
+                 logits_per_text should be a square matrix of shape [N, N] where N is batch size.
+
+    Returns:
+        torch.Tensor: Scalar tensor representing the mean SigLIP loss across the batch.
+    """
+    if getattr(outputs, "loss", None) is not None:
+        return outputs.loss
+
+    logits_per_text = outputs.logits_per_text
+    eye = torch.eye(logits_per_text.size(0), device=logits_per_text.device)
+    m1_diag1 = -torch.ones_like(logits_per_text) + 2 * eye
+    loglik = torch.nn.functional.logsigmoid(m1_diag1 * logits_per_text)
+    nll = -torch.sum(loglik, dim=-1)
+    return nll.mean()
+
+
+def get_dem_model(params):
+    return DEMAdapter(params)
+
+
 def main():
     utils.setup_default_logging()
     args, args_text = _parse_args()
+    if args.eval_only:
+        args.do_pretrain_eval = True
 
     if args.device_modules:
         for module in args.device_modules:
@@ -622,45 +877,66 @@ def main():
     if args.fast_norm:
         set_fast_norm()
 
-    in_chans = 3
-    if args.in_chans is not None:
-        in_chans = args.in_chans
-    elif args.input_size is not None:
-        in_chans = args.input_size[0]
-
-    factory_kwargs = {}
-    if args.pretrained_path:
-        # merge with pretrained_cfg of model, 'file' has priority over 'url' and 'hf_hub'.
-        factory_kwargs['pretrained_cfg_overlay'] = dict(
-            file=args.pretrained_path,
-            num_classes=-1,  # force head adaptation
-        )
-
-    model = create_model(
-        args.model,
-        pretrained=args.pretrained,
-        in_chans=in_chans,
-        num_classes=args.num_classes,
-        drop_rate=args.drop,
-        drop_path_rate=args.drop_path,
-        drop_block_rate=args.drop_block,
-        global_pool=args.gp,
-        bn_momentum=args.bn_momentum,
-        bn_eps=args.bn_eps,
-        scriptable=args.torchscript,
-        checkpoint_path=args.initial_checkpoint,
-        img_size=args.img_size,  # Critical for DINOv2 which defaults to 518x518
-        **factory_kwargs,
-        **args.model_kwargs,
-    )
-    
-
     adapter_config = YParams('./imagenet/config/'+args.our_config_file, args.our_config_name, print_params=True)
-    args.experiment = args.model[:10] + "_" + args.our_config_name
+    is_siglip_mode = _is_siglip_mode(adapter_config)
+    if is_siglip_mode:
+        args.experiment = args.siglip_model_id.split('/')[-1][:16] + "_" + args.our_config_name
+    else:
+        args.experiment = args.model[:10] + "_" + args.our_config_name
     
     if args.dem_lr: adapter_config.dem_lr = args.dem_lr
     args.wandb_project = adapter_config.wandb_project
     args.lr = adapter_config.outer_lr
+
+    if is_siglip_mode:
+        model, siglip_processor, siglip_tokenizer = load_siglip_components(args)
+        image_size, siglip_mean, siglip_std, siglip_interp = _get_siglip_image_config(
+            siglip_processor, fallback_size=args.img_size or 224
+        )
+        if args.img_size is None:
+            args.img_size = image_size
+        data_config = {
+            "input_size": (3, args.img_size, args.img_size),
+            "interpolation": siglip_interp,
+            "mean": tuple(siglip_mean),
+            "std": tuple(siglip_std),
+            "crop_pct": args.crop_pct if args.crop_pct is not None else 1.0,
+        }
+        if args.num_classes is None:
+            args.num_classes = 1000
+    else:
+        in_chans = 3
+        if args.in_chans is not None:
+            in_chans = args.in_chans
+        elif args.input_size is not None:
+            in_chans = args.input_size[0]
+
+        factory_kwargs = {}
+        if args.pretrained_path:
+            factory_kwargs['pretrained_cfg_overlay'] = dict(
+                file=args.pretrained_path,
+                num_classes=-1,
+            )
+
+        model = create_model(
+            args.model,
+            pretrained=args.pretrained,
+            in_chans=in_chans,
+            num_classes=args.num_classes,
+            drop_rate=args.drop,
+            drop_path_rate=args.drop_path,
+            drop_block_rate=args.drop_block,
+            global_pool=args.gp,
+            bn_momentum=args.bn_momentum,
+            bn_eps=args.bn_eps,
+            scriptable=args.torchscript,
+            checkpoint_path=args.initial_checkpoint,
+            img_size=args.img_size,
+            **factory_kwargs,
+            **args.model_kwargs,
+        )
+        siglip_processor = None
+        siglip_tokenizer = None
     
     # callibrating number of samples for training and validation
     if hasattr(adapter_config, 'train_num_samples') and adapter_config.train_num_samples:
@@ -680,28 +956,32 @@ def main():
     # Apply adaptation (either canonicalization or DEM-based)
     if adapter_config.do_cannonicalization:
         model = convert_model(model, adapter_config, local_scale_params, DEM)
-    
-        
-    
-    if args.head_init_scale is not None:
-        with torch.no_grad():
-            model.get_classifier().weight.mul_(args.head_init_scale)
-            model.get_classifier().bias.mul_(args.head_init_scale)
-    if args.head_init_bias is not None:
-        nn.init.constant_(model.get_classifier().bias, args.head_init_bias)
 
-    if args.num_classes is None:
-        assert hasattr(model, 'num_classes'), 'Model must have `num_classes` attr if not set on cmd line/config.'
-        args.num_classes = model.num_classes 
+    if not is_siglip_mode:
+        if args.head_init_scale is not None:
+            with torch.no_grad():
+                model.get_classifier().weight.mul_(args.head_init_scale)
+                model.get_classifier().bias.mul_(args.head_init_scale)
+        if args.head_init_bias is not None:
+            nn.init.constant_(model.get_classifier().bias, args.head_init_bias)
+
+        if args.num_classes is None:
+            assert hasattr(model, 'num_classes'), 'Model must have `num_classes` attr if not set on cmd line/config.'
+            args.num_classes = model.num_classes
 
     if args.grad_checkpointing:
-        model.set_grad_checkpointing(enable=True)
+        if is_siglip_mode and hasattr(model, "gradient_checkpointing_enable"):
+            model.gradient_checkpointing_enable()
+        elif hasattr(model, "set_grad_checkpointing"):
+            model.set_grad_checkpointing(enable=True)
 
     if utils.is_primary(args):
+        model_name_log = args.siglip_model_id if is_siglip_mode else safe_model_name(args.model)
         _logger.info(
-            f'Model {safe_model_name(args.model)} created, param count:{sum([m.numel() for m in model.parameters()])}')
+            f'Model {model_name_log} created, param count:{sum([m.numel() for m in model.parameters()])}')
 
-    data_config = resolve_data_config(vars(args), model=model, verbose=utils.is_primary(args))
+    if not is_siglip_mode:
+        data_config = resolve_data_config(vars(args), model=model, verbose=utils.is_primary(args))
 
     # setup augmentation batch splits for contrastive loss or split bn
     num_aug_splits = 0
@@ -711,8 +991,12 @@ def main():
 
     # enable split bn (separate bn stats per batch-portion)
     if args.split_bn:
-        assert num_aug_splits > 1 or args.resplit
-        model = convert_splitbn_model(model, max(num_aug_splits, 2))
+        if is_siglip_mode:
+            if utils.is_primary(args):
+                _logger.warning("Ignoring --split-bn in SigLIP mode.")
+        else:
+            assert num_aug_splits > 1 or args.resplit
+            model = convert_splitbn_model(model, max(num_aug_splits, 2))
 
     # move model to GPU, enable channels last layout if set
     model.to(device=device, dtype=model_dtype) 
@@ -762,38 +1046,44 @@ def main():
                 f'and effective global batch size ({global_batch_size}) with {args.lr_base_scale} scaling.')
     
     if adapter_config.do_adaptation:
-        # Get parameter groups with proper weight decay exclusion for bias/norm
-        model_param_groups = get_param_groups(model, weight_decay=args.weight_decay, lr=args.lr)
+        model = convert_model(model, adapter_config, local_scale_params, DEM)
+        if utils.is_primary(args):
+            _logger.info('Model adapted with convert_model. Checkpoint weights (if any) will be loaded AFTER this step.')
+
+    if is_siglip_mode:
+        freeze_siglip_text_tower(
+            model,
+            freeze_text=args.siglip_freeze_text,
+            train_logit_scale=args.siglip_train_logit_scale,
+        )
+
+    # freeze backbone before optimizer creation
+    if adapter_config.freeze_backbone_epochs > 0 or adapter_config.finetune_mode != 'complete':
+        for param in model.parameters():
+            param.requires_grad = False
+
+    if adapter_config.do_adaptation:
+        dem_param_ids = {id(p) for p in DEM.parameters()}
+        model_param_groups = get_param_groups(
+            model,
+            weight_decay=args.weight_decay,
+            lr=args.lr,
+            exclude_param_ids=dem_param_ids,
+        )
         dem_param_groups = get_param_groups(DEM, weight_decay=adapter_config.dem_weight_decay, lr=adapter_config.dem_lr)
-        
-        # Combine all parameter groups
         all_param_groups = model_param_groups + dem_param_groups
-        
         optimizer = create_optimizer_v2(
             all_param_groups,
             **optimizer_kwargs(cfg=args),
             **args.opt_kwargs,
         )
     else:
-        # Get parameter groups with proper weight decay exclusion for bias/norm
         model_param_groups = get_param_groups(model, weight_decay=args.weight_decay, lr=args.lr)
-        
         optimizer = create_optimizer_v2(
             model_param_groups,
             **optimizer_kwargs(cfg=args),
             **args.opt_kwargs,
         )
-    
-    
-    # freeze backbone before merging 
-    if adapter_config.freeze_backbone_epochs > 0 or adapter_config.finetune_mode != 'complete':
-        for param in model.parameters():
-            param.requires_grad = False
-    
-    if adapter_config.do_adaptation:
-        model = convert_model(model, adapter_config,local_scale_params, DEM)
-        if utils.is_primary(args):
-            _logger.info('Model adapted with convert_model. Checkpoint weights (if any) will be loaded AFTER this step.')
     
     
     
@@ -1017,11 +1307,39 @@ def main():
     # print dataset_eval size
     print("Actual dataset_eval size", len(dataset_eval))
 
+    siglip_class_names = None
+    siglip_train_templates = None
+    siglip_eval_templates = None
+    if is_siglip_mode:
+        siglip_class_names = resolve_class_names(dataset_train, args.num_classes)
+        siglip_train_templates = get_prompt_templates(adapter_config, mode="train")
+        siglip_eval_templates = get_prompt_templates(adapter_config, mode="eval")
+        if args.siglip_eval_prompt_set != "config":
+            if args.siglip_eval_prompt_set == "openai":
+                siglip_eval_templates = get_openai_imagenet_templates(simple=False)
+            elif args.siglip_eval_prompt_set == "openai_simple":
+                siglip_eval_templates = get_openai_imagenet_templates(simple=True)
+        if utils.is_primary(args) and args.siglip_eval_prompt_set != "config":
+            _logger.info(
+                f"SigLIP eval prompt set: {args.siglip_eval_prompt_set} "
+                f"({len(siglip_eval_templates)} templates)"
+            )
+        if utils.is_primary(args):
+            _logger.info(
+                f"SigLIP mode: {len(siglip_class_names)} classes, "
+                f"{len(siglip_train_templates)} train prompts, {len(siglip_eval_templates)} eval prompts, "
+                f"max_length={args.siglip_max_length}"
+            )
+
 
     # setup mixup / cutmix
     collate_fn = None
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
+    if is_siglip_mode and mixup_active:
+        if utils.is_primary(args):
+            _logger.warning("Mixup/CutMix are disabled in SigLIP mode.")
+        mixup_active = False
     if mixup_active:
         print('*********Mixup/Cutmix enabled.**********')
         mixup_args = dict(
@@ -1125,39 +1443,50 @@ def main():
     else:
         mul_scale_loader_eval = None
 
+    if args.eval_only and loader_eval is None:
+        raise RuntimeError("`--eval-only` requires a validation split (set --val-split) to run evaluation.")
+
 
     
     # setup loss function
-    if args.jsd_loss:
-        assert num_aug_splits > 1  # JSD only valid with aug splits set
-        train_loss_fn = JsdCrossEntropy(num_splits=num_aug_splits, smoothing=args.smoothing)
-    elif mixup_active:
-        # smoothing is handled with mixup target transform which outputs sparse, soft targets
-        if args.bce_loss:
-            train_loss_fn = BinaryCrossEntropy(
-                target_threshold=args.bce_target_thresh,
-                sum_classes=args.bce_sum,
-                pos_weight=args.bce_pos_weight,
-            )
-        else:
-            train_loss_fn = SoftTargetCrossEntropy()
-    elif args.smoothing:
-        if args.bce_loss:
-            train_loss_fn = BinaryCrossEntropy(
-                smoothing=args.smoothing,
-                target_threshold=args.bce_target_thresh,
-                sum_classes=args.bce_sum,
-                pos_weight=args.bce_pos_weight,
-            )
-        else:
-            train_loss_fn = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
+    if is_siglip_mode:
+        train_loss_fn = None
+        validate_loss_fn = None
     else:
-        train_loss_fn = nn.CrossEntropyLoss()
-    train_loss_fn = train_loss_fn.to(device=device)
-    validate_loss_fn = nn.CrossEntropyLoss().to(device=device)
+        if args.jsd_loss:
+            assert num_aug_splits > 1  # JSD only valid with aug splits set
+            train_loss_fn = JsdCrossEntropy(num_splits=num_aug_splits, smoothing=args.smoothing)
+        elif mixup_active:
+            if args.bce_loss:
+                train_loss_fn = BinaryCrossEntropy(
+                    target_threshold=args.bce_target_thresh,
+                    sum_classes=args.bce_sum,
+                    pos_weight=args.bce_pos_weight,
+                )
+            else:
+                train_loss_fn = SoftTargetCrossEntropy()
+        elif args.smoothing:
+            if args.bce_loss:
+                train_loss_fn = BinaryCrossEntropy(
+                    smoothing=args.smoothing,
+                    target_threshold=args.bce_target_thresh,
+                    sum_classes=args.bce_sum,
+                    pos_weight=args.bce_pos_weight,
+                )
+            else:
+                train_loss_fn = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
+        else:
+            train_loss_fn = nn.CrossEntropyLoss()
+        train_loss_fn = train_loss_fn.to(device=device)
+        validate_loss_fn = nn.CrossEntropyLoss().to(device=device)
 
     # setup checkpoint saver and eval metric tracking
-    eval_metric = args.eval_metric if loader_eval is not None else 'loss'
+    if is_siglip_mode:
+        if args.eval_metric == 'top1':
+            args.eval_metric = 'zs_top1'
+        eval_metric = args.eval_metric if loader_eval is not None else 'loss'
+    else:
+        eval_metric = args.eval_metric if loader_eval is not None else 'loss'
     decreasing_metric = eval_metric == 'loss'
     best_metric = None
     best_epoch = None
@@ -1261,20 +1590,38 @@ def main():
     try:
         # ========== doing eval prior to training ==========
         if loader_eval is not None and args.do_pretrain_eval:
-            eval_metrics = validate(
-                model,
-                loader_eval,
-                validate_loss_fn,
-                args,
-                device=device,
-                amp_autocast=amp_autocast,
-                model_dtype=model_dtype,
-                multi_scale_loader=mul_scale_loader_eval,
-                do_per_scale_acc=True,
-                adapter_config=adapter_config
-            )
+            if is_siglip_mode:
+                eval_metrics = validate_siglip(
+                    model,
+                    loader_eval,
+                    args,
+                    class_names=siglip_class_names,
+                    prompt_templates=siglip_eval_templates,
+                    tokenizer=siglip_tokenizer,
+                    max_length=args.siglip_max_length,
+                    device=device,
+                    amp_autocast=amp_autocast,
+                    model_dtype=model_dtype,
+                )
+            else:
+                eval_metrics = validate(
+                    model,
+                    loader_eval,
+                    validate_loss_fn,
+                    args,
+                    device=device,
+                    amp_autocast=amp_autocast,
+                    model_dtype=model_dtype,
+                    multi_scale_loader=mul_scale_loader_eval,
+                    do_per_scale_acc=True,
+                    adapter_config=adapter_config
+                )
             if args.log_wandb and has_wandb:
                 wandb.log(eval_metrics)
+            if args.eval_only:
+                if utils.is_primary(args):
+                    _logger.info(f"Eval-only results: {eval_metrics}")
+                return
         
         
         for epoch in range(start_epoch, num_epochs):
@@ -1304,29 +1651,57 @@ def main():
                 else:
                     raise ValueError("Invalid finetune_mode")
             # ====================================================================        
+            if is_siglip_mode:
+                freeze_siglip_text_tower(
+                    model,
+                    freeze_text=args.siglip_freeze_text,
+                    train_logit_scale=args.siglip_train_logit_scale,
+                )
+
             if hasattr(dataset_train, 'set_epoch'):
                 dataset_train.set_epoch(epoch)
             elif args.distributed and hasattr(loader_train.sampler, 'set_epoch'):
                 loader_train.sampler.set_epoch(epoch)
 
-            train_metrics = train_one_epoch(
-                epoch,
-                model,
-                loader_train,
-                optimizer,
-                train_loss_fn,
-                args,
-                lr_scheduler=lr_scheduler,
-                saver=saver,
-                output_dir=output_dir,
-                amp_autocast=amp_autocast,
-                loss_scaler=loss_scaler,
-                model_dtype=model_dtype,
-                model_ema=model_ema,
-                mixup_fn=mixup_fn,
-                num_updates_total=num_epochs * updates_per_epoch,
-                adapter_config=adapter_config,
-            )
+            if is_siglip_mode:
+                train_metrics = train_one_epoch_siglip(
+                    epoch,
+                    model,
+                    loader_train,
+                    optimizer,
+                    args,
+                    class_names=siglip_class_names,
+                    prompt_templates=siglip_train_templates,
+                    tokenizer=siglip_tokenizer,
+                    max_length=args.siglip_max_length,
+                    lr_scheduler=lr_scheduler,
+                    saver=saver,
+                    output_dir=output_dir,
+                    amp_autocast=amp_autocast,
+                    loss_scaler=loss_scaler,
+                    model_dtype=model_dtype,
+                    model_ema=model_ema,
+                    device=device,
+                )
+            else:
+                train_metrics = train_one_epoch(
+                    epoch,
+                    model,
+                    loader_train,
+                    optimizer,
+                    train_loss_fn,
+                    args,
+                    lr_scheduler=lr_scheduler,
+                    saver=saver,
+                    output_dir=output_dir,
+                    amp_autocast=amp_autocast,
+                    loss_scaler=loss_scaler,
+                    model_dtype=model_dtype,
+                    model_ema=model_ema,
+                    mixup_fn=mixup_fn,
+                    num_updates_total=num_epochs * updates_per_epoch,
+                    adapter_config=adapter_config,
+                )
 
             if args.distributed and args.dist_bn in ('broadcast', 'reduce'):
                 if utils.is_primary(args):
@@ -1334,33 +1709,62 @@ def main():
                 utils.distribute_bn(model, args.world_size, args.dist_bn == 'reduce')
 
             if loader_eval is not None:
-                eval_metrics = validate(
-                    model,
-                    loader_eval,
-                    validate_loss_fn,
-                    args,
-                    device=device,
-                    amp_autocast=amp_autocast,
-                    model_dtype=model_dtype,
-                    multi_scale_loader=mul_scale_loader_eval,
-                    do_per_scale_acc= epoch == num_epochs - 1 or (epoch+1) % args.per_scale_eval_freq == 0,
-                    adapter_config=adapter_config
-                )
-
-                if model_ema is not None and not args.model_ema_force_cpu:
-                    if args.distributed and args.dist_bn in ('broadcast', 'reduce'):
-                        utils.distribute_bn(model_ema, args.world_size, args.dist_bn == 'reduce')
-
-                    ema_eval_metrics = validate(
-                        model_ema,
+                if is_siglip_mode:
+                    eval_metrics = validate_siglip(
+                        model,
+                        loader_eval,
+                        args,
+                        class_names=siglip_class_names,
+                        prompt_templates=siglip_eval_templates,
+                        tokenizer=siglip_tokenizer,
+                        max_length=args.siglip_max_length,
+                        device=device,
+                        amp_autocast=amp_autocast,
+                        model_dtype=model_dtype,
+                    )
+                else:
+                    eval_metrics = validate(
+                        model,
                         loader_eval,
                         validate_loss_fn,
                         args,
                         device=device,
                         amp_autocast=amp_autocast,
-                        log_suffix=' (EMA)',
-                        adapter_config=adapter_config,
+                        model_dtype=model_dtype,
+                        multi_scale_loader=mul_scale_loader_eval,
+                        do_per_scale_acc= epoch == num_epochs - 1 or (epoch+1) % args.per_scale_eval_freq == 0,
+                        adapter_config=adapter_config
                     )
+
+                if model_ema is not None and not args.model_ema_force_cpu:
+                    if args.distributed and args.dist_bn in ('broadcast', 'reduce'):
+                        utils.distribute_bn(model_ema, args.world_size, args.dist_bn == 'reduce')
+
+                    if is_siglip_mode:
+                        ema_eval_metrics = validate_siglip(
+                            model_ema,
+                            loader_eval,
+                            args,
+                            class_names=siglip_class_names,
+                            prompt_templates=siglip_eval_templates,
+                            tokenizer=siglip_tokenizer,
+                            max_length=args.siglip_max_length,
+                            device=device,
+                            amp_autocast=amp_autocast,
+                            model_dtype=model_dtype,
+                            log_suffix=' (EMA)',
+                        )
+                    else:
+                        ema_eval_metrics = validate(
+                            model_ema,
+                            loader_eval,
+                            validate_loss_fn,
+                            args,
+                            device=device,
+                            amp_autocast=amp_autocast,
+                            log_suffix=' (EMA)',
+                            adapter_config=adapter_config,
+                        )
                     eval_metrics = ema_eval_metrics
             else:
                 eval_metrics = None
@@ -1709,6 +2113,276 @@ def train_one_epoch(
         loss_prior_avg = utils.reduce_tensor(loss_prior_avg, args.world_size).item()
         
     return OrderedDict([('loss', loss_avg), ('eq_loss', loss_eq_avg), ('unique_loss', loss_diff_avg), ('prior_loss', loss_prior_avg)])
+
+
+def train_one_epoch_siglip(
+        epoch,
+        model,
+        loader,
+        optimizer,
+        args,
+        class_names,
+        prompt_templates,
+        tokenizer,
+        max_length,
+        device=torch.device('cuda'),
+        lr_scheduler=None,
+        saver=None,
+        output_dir=None,
+        amp_autocast=suppress,
+        loss_scaler=None,
+        model_dtype=None,
+        model_ema=None,
+):
+    second_order = hasattr(optimizer, 'is_second_order') and optimizer.is_second_order
+    has_no_sync = hasattr(model, "no_sync")
+    update_time_m = utils.AverageMeter()
+    data_time_m = utils.AverageMeter()
+    losses_m = utils.AverageMeter()
+
+    model.train()
+    if args.siglip_freeze_text:
+        base_model = _unwrap_model(model)
+        if hasattr(base_model, "text_model"):
+            base_model.text_model.eval()
+
+    accum_steps = args.grad_accum_steps
+    last_accum_steps = len(loader) % accum_steps
+    updates_per_epoch = (len(loader) + accum_steps - 1) // accum_steps
+    num_updates = epoch * updates_per_epoch
+    last_batch_idx = len(loader) - 1
+    last_batch_idx_to_accum = len(loader) - last_accum_steps
+
+    data_start_time = update_start_time = time.time()
+    optimizer.zero_grad()
+    update_sample_count = 0
+
+    debug_batches = getattr(args, 'debug_batches', None)
+    if debug_batches is not None and utils.is_primary(args):
+        _logger.info(f'DEBUG MODE: Limiting training to {debug_batches} batches per epoch')
+
+    for batch_idx, (input, target) in enumerate(loader):
+        if debug_batches is not None and batch_idx >= debug_batches:
+            if utils.is_primary(args):
+                _logger.info(f'DEBUG MODE: Reached {debug_batches} batches, stopping epoch early')
+            break
+
+        last_batch = batch_idx == last_batch_idx
+        need_update = last_batch or (batch_idx + 1) % accum_steps == 0
+        update_idx = batch_idx // accum_steps
+        if batch_idx >= last_batch_idx_to_accum:
+            accum_steps = last_accum_steps
+
+        if not args.prefetcher:
+            input = input.to(device=device, dtype=model_dtype)
+            target = target.to(device=device)
+        else:
+            target = target.to(device=device)
+
+        if args.channels_last:
+            input = input.contiguous(memory_format=torch.channels_last)
+
+        prompts = build_batch_text_prompts(target, class_names, prompt_templates)
+        tokenized = tokenize_prompts(tokenizer, prompts, max_length=max_length, device=device)
+        data_time_m.update(accum_steps * (time.time() - data_start_time))
+
+        def _forward():
+            with amp_autocast():
+                outputs = model(
+                    pixel_values=input,
+                    input_ids=tokenized["input_ids"],
+                    attention_mask=tokenized["attention_mask"],
+                    return_loss=True,
+                    return_dict=True,
+                )
+                loss = compute_siglip_loss(outputs)
+            if accum_steps > 1:
+                loss = loss / accum_steps
+            return loss
+
+        def _backward(_loss):
+            if loss_scaler is not None:
+                loss_scaler(
+                    _loss,
+                    optimizer,
+                    clip_grad=args.clip_grad,
+                    clip_mode=args.clip_mode,
+                    parameters=model_parameters(model, exclude_head='agc' in args.clip_mode),
+                    create_graph=second_order,
+                    need_update=need_update,
+                )
+            else:
+                _loss.backward(create_graph=second_order)
+                if need_update:
+                    if args.clip_grad is not None:
+                        utils.dispatch_clip_grad(
+                            model_parameters(model, exclude_head='agc' in args.clip_mode),
+                            value=args.clip_grad,
+                            mode=args.clip_mode,
+                        )
+                    optimizer.step()
+
+        if has_no_sync and not need_update:
+            with model.no_sync():
+                loss = _forward()
+                _backward(loss)
+        else:
+            loss = _forward()
+            _backward(loss)
+
+        losses_m.update(loss.item() * accum_steps, input.size(0))
+        update_sample_count += input.size(0)
+
+        if not need_update:
+            data_start_time = time.time()
+            continue
+
+        num_updates += 1
+        optimizer.zero_grad()
+        if model_ema is not None:
+            model_ema.update(model, step=num_updates)
+
+        if args.synchronize_step:
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
+            elif device.type == 'npu':
+                torch.npu.synchronize()
+        time_now = time.time()
+        update_time_m.update(time.time() - update_start_time)
+        update_start_time = time_now
+
+        if update_idx % args.log_interval == 0:
+            lrl = [param_group['lr'] for param_group in optimizer.param_groups]
+            lr = sum(lrl) / len(lrl)
+
+            loss_avg, loss_now = losses_m.avg, losses_m.val
+            if args.distributed:
+                loss_avg = utils.reduce_tensor(loss.new([loss_avg]), args.world_size).item()
+                loss_now = utils.reduce_tensor(loss.new([loss_now]), args.world_size).item()
+                update_sample_count *= args.world_size
+
+            if utils.is_primary(args):
+                _logger.info(
+                    f'Train: {epoch} [{update_idx:>4d}/{updates_per_epoch} '
+                    f'({100. * (update_idx + 1) / updates_per_epoch:>3.0f}%)]  '
+                    f'Loss: {loss_now:#.3g} ({loss_avg:#.3g})  '
+                    f'Time: {update_time_m.val:.3f}s, {update_sample_count / update_time_m.val:>7.2f}/s  '
+                    f'({update_time_m.avg:.3f}s, {update_sample_count / update_time_m.avg:>7.2f}/s)  '
+                    f'LR: {lr:.3e}  '
+                    f'Data: {data_time_m.val:.3f} ({data_time_m.avg:.3f})'
+                )
+
+        if saver is not None and args.recovery_interval and ((update_idx + 1) % args.recovery_interval == 0):
+            saver.save_recovery(epoch, batch_idx=update_idx)
+
+        if lr_scheduler is not None:
+            lr_scheduler.step_update(num_updates=num_updates, metric=losses_m.avg)
+
+        update_sample_count = 0
+        data_start_time = time.time()
+
+    if hasattr(optimizer, 'sync_lookahead'):
+        optimizer.sync_lookahead()
+
+    loss_avg = losses_m.avg
+    if args.distributed:
+        loss_avg_t = torch.tensor([loss_avg], device=device, dtype=torch.float32)
+        loss_avg = utils.reduce_tensor(loss_avg_t, args.world_size).item()
+
+    return OrderedDict([('loss', loss_avg), ('eq_loss', 0.0), ('unique_loss', 0.0), ('prior_loss', 0.0)])
+
+
+def validate_siglip(
+        model,
+        loader,
+        args,
+        class_names,
+        prompt_templates,
+        tokenizer,
+        max_length=64,
+        device=torch.device('cuda'),
+        amp_autocast=suppress,
+        model_dtype=None,
+        log_suffix='',
+):
+    batch_time_m = utils.AverageMeter()
+    losses_m = utils.AverageMeter()
+    top1_m = utils.AverageMeter()
+    top5_m = utils.AverageMeter()
+
+    model.eval()
+    base_model = _unwrap_model(model)
+
+    text_bank = build_zeroshot_text_bank(
+        model=model,
+        tokenizer=tokenizer,
+        class_names=class_names,
+        prompt_templates=prompt_templates,
+        max_length=max_length,
+        device=device,
+    )
+
+    end = time.time()
+    last_idx = len(loader) - 1
+    with torch.no_grad():
+        for batch_idx, (input, target) in enumerate(loader):
+            last_batch = batch_idx == last_idx
+            if not args.prefetcher:
+                input = input.to(device=device, dtype=model_dtype)
+                target = target.to(device=device)
+            else:
+                target = target.to(device=device)
+
+            if args.channels_last:
+                input = input.contiguous(memory_format=torch.channels_last)
+
+            with amp_autocast():
+                image_features = base_model.get_image_features(pixel_values=input)
+                image_features = F.normalize(image_features, dim=-1)
+                scores = torch.einsum("bd,ctd->bct", image_features, text_bank)
+                if args.siglip_prompt_agg == "max":
+                    logits = scores.max(dim=2).values
+                else:
+                    logits = scores.mean(dim=2)
+                loss = F.cross_entropy(logits, target)
+
+            acc1, acc5 = utils.accuracy(logits, target, topk=(1, 5))
+
+            if args.distributed:
+                reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
+                acc1 = utils.reduce_tensor(acc1, args.world_size)
+                acc5 = utils.reduce_tensor(acc5, args.world_size)
+            else:
+                reduced_loss = loss.data
+
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
+            elif device.type == "npu":
+                torch.npu.synchronize()
+
+            losses_m.update(reduced_loss.item(), input.size(0))
+            top1_m.update(acc1.item(), logits.size(0))
+            top5_m.update(acc5.item(), logits.size(0))
+
+            batch_time_m.update(time.time() - end)
+            end = time.time()
+            if utils.is_primary(args) and (last_batch or batch_idx % args.log_interval == 0):
+                log_name = 'Test' + log_suffix
+                _logger.info(
+                    f'{log_name}: [{batch_idx:>4d}/{last_idx}]  '
+                    f'Time: {batch_time_m.val:.3f} ({batch_time_m.avg:.3f})  '
+                    f'Loss: {losses_m.val:>7.3f} ({losses_m.avg:>6.3f})  '
+                    f'ZS@1: {top1_m.val:>7.3f} ({top1_m.avg:>7.3f})  '
+                    f'ZS@5: {top5_m.val:>7.3f} ({top5_m.avg:>7.3f})'
+                )
+
+    return OrderedDict([
+        ('loss', losses_m.avg),
+        ('top1', top1_m.avg),
+        ('top5', top5_m.avg),
+        ('zs_top1', top1_m.avg),
+        ('zs_top5', top5_m.avg),
+    ])
 
 
 def validate(
