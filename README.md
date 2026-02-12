@@ -1,6 +1,6 @@
 :new: :fire: [2025-12-16] *Opensourced Local Scale Equivariant DINOv2 (DINOv2-lse) on Huggingface [LSE-DINO-v2](https://huggingface.co/ashiq24/lse-dinov2-base)*
 
-:new: :fire: [2026-02-12] *Opensourced Local Scale Equivariant Siglip-v2 (Siglip2-lse) on Huggingface [LSE-DINO-v2](https://huggingface.co/ashiq24/siglip2-base-lse)*
+:new: :fire: [2026-02-12] *Opensourced Local Scale Equivariant Siglip-v2 (Siglip2-lse) on Huggingface [Siglip2-lse](https://huggingface.co/ashiq24/siglip2-base-lse)*
 
 ## Local Scale Equivariance with Latent Deep Equilibrium Canonicalizer
 
