@@ -2,6 +2,8 @@
 
 :new: :fire: [2026-02-12] *Opensourced Local Scale Equivariant Siglip-v2 (Siglip2-lse) on Huggingface [Siglip2-lse](https://huggingface.co/ashiq24/siglip2-base-lse)*
 
+:new: 🕶️ Single file implementation [Dino-v2](https://huggingface.co/ashiq24/dinov2-base-lse/blob/main/modeling_lse_dinov2.py)
+
 ## Local Scale Equivariance with Latent Deep Equilibrium Canonicalizer
 
 📢 **ICCV 2025** • [![Project Page](https://img.shields.io/badge/Project-Website-blue)](https://ashiq24.github.io/local-scale-equivariance/)
@@ -25,18 +27,6 @@
 <video src="https://github.com/user-attachments/assets/d57409d6-ba93-47c8-b69e-da45a1ac371b" 
        width="200" height="200" controls>
 </video>
-## 📋 Table of Contents
-
-- [Installation](#installation)
-- [Datasets](#datasets)
-- [Quick Start](#quick-start)
-- [Experiments](#experiments)
-  - [MNIST Experiments](#mnist-experiments)
-  - [ImageNet Experiments](#imagenet-experiments)
-- [Repository Structure](#repository-structure)
-- [Troubleshooting](#troubleshooting)
-- [Citation](#citation)
-- [License](#license)
 
 ## 🚀 Installation
 ###  You can use it directly from Huggingface [LSE-DINO-v2](https://huggingface.co/ashiq24/lse-dinov2-base).
@@ -67,8 +57,6 @@ conda activate inpaint
 - timm 1.0.14
 - torchdeq 0.1.0
 - transformers 4.44.2+
-
-**Full dependency list:** See `environment.yml`
 
 ## 📊 Datasets
 
@@ -183,23 +171,6 @@ local-scale-equivariance/
 ├── 📄 YParams.py                 # YAML parameter utilities
 └── 📄 TUTORIAL.ipynb             # Tutorial notebook
 ```
-
-
-### Logging and Monitoring
-
-- **WandB Integration**: Automatic logging enabled
-- **Checkpoints**: Saved in `./weights/` directory  
-- **Logs**: Console output shows training progress
-
-
-## 🤝 Contributing
-
-We welcome contributions! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality  
-4. Submit a pull request
 
 ## 📄 Citation
 
