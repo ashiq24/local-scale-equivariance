@@ -1,7 +1,10 @@
-:new: :fire: [2025-12-16] *Opensourced Local Scale Equivariant DINOv2 (LSE-DINOv2) on Huggingface [LSE-DINO-v2](https://huggingface.co/ashiq24/lse-dinov2-base)*
+:new: :fire: [2025-12-16] *Opensourced Local Scale Equivariant DINOv2 (DINOv2-lse) on Huggingface [LSE-DINO-v2](https://huggingface.co/ashiq24/lse-dinov2-base)*
+
+:new: :fire: [2026-02-12] *Opensourced Local Scale Equivariant Siglip-v2 (Siglip2-lse) on Huggingface [LSE-DINO-v2](https://huggingface.co/ashiq24/siglip2-base-lse)*
+
 ## Local Scale Equivariance with Latent Deep Equilibrium Canonicalizer
 
-📢 **Accepted at ICCV 2025** • 🌐 [![Project Page](https://img.shields.io/badge/Project-Website-blue)](https://ashiq24.github.io/local-scale-equivariance/)
+📢 **ICCV 2025** • [![Project Page](https://img.shields.io/badge/Project-Website-blue)](https://ashiq24.github.io/local-scale-equivariance/)
 
 [Md Ashiqur Rahman¹](mailto:rahman79@purdue.edu), [Chiao-An Yang¹](mailto:yang2892@purdue.edu), [Michael N. Cheng¹](mailto:cheng610@purdue.edu), [Lim Jun Hao²](mailto:ljunhao@dso.org.sg), [Jeremiah Jiang²](mailto:jjiang@dso.org.sg), [Teck-Yian Lim²](mailto:tylim@dso.org.sg), [Raymond A. Yeh¹](mailto:raymond.yeh@purdue.edu)
 
