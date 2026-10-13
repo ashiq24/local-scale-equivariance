@@ -6,7 +6,7 @@
 
 ## Local Scale Equivariance with Latent Deep Equilibrium Canonicalizer
 
-📢 **ICCV 2025** • [![Project Page](https://img.shields.io/badge/Project-Website-blue)](https://ashiq24.github.io/local-scale-equivariance/)
+📢 **ICCV 2025** • [![Project Page](https://img.shields.io/badge/Project-Website-blue)](https://ashiq24.github.io/local-scale-equivariance/) [![YouTube](https://img.shields.io/badge/YouTube-Video-red?logo=youtube)](https://youtu.be/L2rvg7-gafs?si=IrnrRuCkynlLT7v0)
 
 [Md Ashiqur Rahman¹](mailto:rahman79@purdue.edu), [Chiao-An Yang¹](mailto:yang2892@purdue.edu), [Michael N. Cheng¹](mailto:cheng610@purdue.edu), [Lim Jun Hao²](mailto:ljunhao@dso.org.sg), [Jeremiah Jiang²](mailto:jjiang@dso.org.sg), [Teck-Yian Lim²](mailto:tylim@dso.org.sg), [Raymond A. Yeh¹](mailto:raymond.yeh@purdue.edu)
 
